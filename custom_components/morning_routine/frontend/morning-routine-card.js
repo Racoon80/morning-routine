@@ -10,7 +10,7 @@
  *   tint_mode: mask  # mask | filter | none
  */
 
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 
 class MorningRoutineCard extends HTMLElement {
   constructor() {
@@ -37,7 +37,39 @@ class MorningRoutineCard extends HTMLElement {
       active_step_entity: null,
       ...config,
     };
+    this._renderPlaceholder();
     this._render();
+  }
+
+  connectedCallback() {
+    this._renderPlaceholder();
+    this._render();
+  }
+
+  /** Always render at least an empty ha-card so the dashboard picker
+   *  considers the element "loaded" even before hass is wired up. */
+  _renderPlaceholder() {
+    if (this.shadowRoot.querySelector("ha-card, #overlay")) return;
+    const tpl = document.createElement("div");
+    tpl.innerHTML = `
+      <style>
+        :host { display: block; }
+        ha-card.mr-placeholder {
+          padding: 14px 16px;
+          font-size: 14px;
+          opacity: 0.7;
+          color: var(--primary-text-color);
+          border-radius: 12px;
+        }
+      </style>
+      <ha-card class="mr-placeholder" id="mr-placeholder">Morning Routine</ha-card>
+    `;
+    this.shadowRoot.appendChild(tpl);
+  }
+
+  _removePlaceholder() {
+    const ph = this.shadowRoot.getElementById("mr-placeholder");
+    if (ph) ph.remove();
   }
 
   _resolveEntity() {
@@ -85,12 +117,14 @@ class MorningRoutineCard extends HTMLElement {
     if (!active) {
       this._mountOverlay(false);
       this._mountIdle({ next, language });
+      this._removePlaceholder();
       this._lastStepName = null;
       return;
     }
 
     this._mountIdle(null);
     this._mountOverlay(true);
+    this._removePlaceholder();
     this._paint({ name, image, progress, timeLeft, next, language });
 
     if (active !== this._lastStepName) {
