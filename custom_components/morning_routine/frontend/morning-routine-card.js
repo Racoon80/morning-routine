@@ -10,7 +10,7 @@
  *   tint_mode: mask  # mask | filter | none
  */
 
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 
 class MorningRoutineCard extends HTMLElement {
   constructor() {
@@ -84,16 +84,86 @@ class MorningRoutineCard extends HTMLElement {
 
     if (!active) {
       this._mountOverlay(false);
+      this._mountIdle({ next, language });
       this._lastStepName = null;
       return;
     }
 
+    this._mountIdle(null);
     this._mountOverlay(true);
     this._paint({ name, image, progress, timeLeft, next, language });
 
     if (active !== this._lastStepName) {
       this._lastStepName = active;
       this._flashIn();
+    }
+  }
+
+  _mountIdle(state) {
+    let idle = this.shadowRoot.getElementById("mr-idle");
+    if (!state) {
+      if (idle) idle.remove();
+      return;
+    }
+    if (!idle) {
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <style>
+          ha-card.mr-idle {
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-radius: 12px;
+          }
+          ha-card.mr-idle .icon {
+            width: 40px; height: 40px;
+            background: var(--primary-color, #03a9f4);
+            -webkit-mask: var(--mr-idle-img) center / contain no-repeat;
+                    mask: var(--mr-idle-img) center / contain no-repeat;
+            flex: 0 0 auto;
+          }
+          ha-card.mr-idle .text {
+            display: flex; flex-direction: column; gap: 2px;
+          }
+          ha-card.mr-idle .title {
+            font-size: 15px; font-weight: 600;
+            color: var(--primary-text-color);
+          }
+          ha-card.mr-idle .sub {
+            font-size: 13px; opacity: 0.7;
+            color: var(--primary-text-color);
+          }
+        </style>
+        <ha-card class="mr-idle" id="mr-idle">
+          <div class="icon" id="mr-idle-icon"></div>
+          <div class="text">
+            <div class="title" id="mr-idle-title"></div>
+            <div class="sub" id="mr-idle-sub"></div>
+          </div>
+        </ha-card>
+      `;
+      this.shadowRoot.appendChild(wrapper);
+      idle = this.shadowRoot.getElementById("mr-idle");
+    }
+    const { next, language } = state;
+    const labels = {
+      de: { title: "Morning Routine", noNext: "Heute keine weiteren Schritte" },
+      lb: { title: "Moiesroutine", noNext: "Haut keng weider Schrëtt" },
+      en: { title: "Morning Routine", noNext: "No more steps today" },
+    };
+    const L = labels[language] || labels.en;
+    if (next) {
+      const nextName = (language === "lb" ? next.name_lb : next.name) || next.name;
+      this.shadowRoot.getElementById("mr-idle-title").textContent = L.title;
+      this.shadowRoot.getElementById("mr-idle-sub").textContent = `${nextName} · ${next.start}`;
+      if (next.image) {
+        idle.style.setProperty("--mr-idle-img", `url("${next.image}")`);
+      }
+    } else {
+      this.shadowRoot.getElementById("mr-idle-title").textContent = L.title;
+      this.shadowRoot.getElementById("mr-idle-sub").textContent = L.noNext;
+      idle.style.setProperty("--mr-idle-img", `url("/morning_routine_frontend/images/done.svg")`);
     }
   }
 

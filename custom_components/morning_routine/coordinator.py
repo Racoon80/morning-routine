@@ -296,26 +296,35 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                 )
 
     # ── services ─────────────────────────────────────────────────────────────
+    # The snooze_offset is subtracted from real time to get simulated time:
+    #   simulated = real - offset
+    # → positive offset moves the routine to an EARLIER simulated time.
+    # → negative offset moves it to a LATER simulated time.
+
     async def async_skip_step(self) -> None:
         """End current step immediately by jumping past its end."""
         if self._active_idx is None:
             return
         step = self._steps[self._active_idx]
         now = dt_util.now()
-        end_dt = step.start_dt(now) + step.duration
-        self._snooze_offset -= (end_dt - (now - self._snooze_offset))
+        sim_now = now - self._snooze_offset
+        end_dt = step.start_dt(sim_now) + step.duration
+        target_sim = end_dt + timedelta(seconds=1)
+        self._snooze_offset = now - target_sim
         await self.async_request_refresh()
 
     async def async_start_now(self) -> None:
-        """Start the first step now regardless of time."""
+        """Start the first step now regardless of clock time."""
         if not self._steps:
             return
         first = self._steps[0]
         now = dt_util.now()
-        target_start = first.start_dt(now)
-        self._snooze_offset = target_start - now
+        target_sim = first.start_dt(now) + timedelta(seconds=1)
+        self._snooze_offset = now - target_sim
         await self.async_request_refresh()
 
     async def async_snooze(self, minutes: int = 5) -> None:
+        # Snooze pushes the routine forward in real time.
+        # That means simulated time should appear EARLIER → offset increases.
         self._snooze_offset += timedelta(minutes=minutes)
         await self.async_request_refresh()
