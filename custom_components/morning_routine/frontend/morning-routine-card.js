@@ -10,7 +10,7 @@
  *   tint_mode: mask  # mask | filter | none
  */
 
-const VERSION = "0.4.2";
+const VERSION = "0.4.3";
 
 class MorningRoutineCard extends HTMLElement {
   constructor() {

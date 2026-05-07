@@ -41,16 +41,79 @@ def _read_version() -> str:
 
 
 async def _register_frontend(hass: HomeAssistant) -> None:
-    """Register static path + inject card script. Idempotent per HA session."""
+    """Register static path + inject card script. Idempotent per HA session.
+
+    Three layers so the card shows up in every HA configuration:
+      1. Serve the JS as a static path
+      2. add_extra_js_url   — loads in main HA frontend
+      3. Lovelace resource  — required for the dashboard card picker to
+         see the card in storage-mode dashboards (most users)
+    """
     if hass.data.get(_FRONTEND_FLAG):
         return
     hass.data[_FRONTEND_FLAG] = True
+
+    version = _read_version()
+    card_url = f"{FRONTEND_BASE}/morning-routine-card.js?v={version}"
+
     await hass.http.async_register_static_paths(
         [StaticPathConfig(FRONTEND_BASE, FRONTEND_FS_PATH, cache_headers=False)]
     )
-    # Version query string busts browser cache on integration updates.
-    add_extra_js_url(hass, f"{FRONTEND_BASE}/morning-routine-card.js?v={_read_version()}")
-    _LOGGER.info("Morning Routine frontend registered (card v%s)", _read_version())
+    add_extra_js_url(hass, card_url)
+    await _ensure_lovelace_resource(hass, card_url)
+    _LOGGER.info("Morning Routine frontend registered (card v%s)", version)
+
+
+async def _ensure_lovelace_resource(hass: HomeAssistant, url: str) -> None:
+    """Add the card URL to Lovelace storage-mode resources if missing.
+
+    Without this the dashboard card picker shows the card as "still
+    loading" because Lovelace only loads cards from its own resource
+    list, ignoring add_extra_js_url. YAML-mode users manage resources
+    themselves, so this is a no-op for them.
+    """
+    try:
+        ll = hass.data.get("lovelace")
+        if ll is None:
+            return
+        # Newer HA exposes resources as ll.resources, older as ll["resources"].
+        resources = getattr(ll, "resources", None)
+        if resources is None and isinstance(ll, dict):
+            resources = ll.get("resources")
+        if resources is None:
+            return
+        # Only storage mode supports programmatic resource management.
+        store_mode = getattr(resources, "store", None)
+        if store_mode is None:
+            return
+        # Ensure resources are loaded; in modern HA this is already done at
+        # startup but during an early-setup race we want to be safe.
+        if hasattr(resources, "async_load") and not getattr(resources, "data", None):
+            await resources.async_load()
+
+        url_base = url.split("?", 1)[0]
+        items = list(resources.async_items()) if hasattr(resources, "async_items") else []
+        existing = next(
+            (r for r in items if r.get("url", "").split("?", 1)[0] == url_base),
+            None,
+        )
+        if existing:
+            # Refresh the URL so the version query string is current.
+            if existing.get("url") != url and hasattr(resources, "async_update_item"):
+                await resources.async_update_item(
+                    existing["id"], {"res_type": "module", "url": url}
+                )
+            return
+        if hasattr(resources, "async_create_item"):
+            await resources.async_create_item({"res_type": "module", "url": url})
+            _LOGGER.info("Registered Lovelace resource: %s", url)
+    except Exception as err:  # noqa: BLE001 - never break setup over this
+        _LOGGER.warning(
+            "Could not auto-register Lovelace resource for the card: %s. "
+            "Add %s manually under Settings → Dashboards → Resources.",
+            err,
+            url,
+        )
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
