@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     DOMAIN,
+    SERVICE_SET_STEPS,
     SERVICE_SKIP_STEP,
     SERVICE_SNOOZE,
     SERVICE_START_NOW,
@@ -146,10 +147,60 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for c in hass.data[DOMAIN].values():
             await c.async_snooze(minutes)
 
+    async def _set_steps(call) -> None:
+        """Replace the entire step list. Used by the in-card editor."""
+        from .const import CONF_STEPS, DAYS_ALL
+        import uuid
+
+        raw_steps = call.data.get("steps", [])
+        if not isinstance(raw_steps, list):
+            return
+        cleaned: list[dict] = []
+        seen_ids: set[str] = set()
+        for s in raw_steps:
+            if not isinstance(s, dict):
+                continue
+            sid = s.get("id") or uuid.uuid4().hex
+            if sid in seen_ids:
+                continue
+            seen_ids.add(sid)
+            try:
+                duration = max(1, min(600, int(s.get("duration", 15))))
+            except (TypeError, ValueError):
+                duration = 15
+            start = s.get("start") or "07:30"
+            # accept either "HH:MM" or "HH:MM:SS"
+            if isinstance(start, str) and len(start) >= 5:
+                start = start[:5]
+            else:
+                start = "07:30"
+            days = s.get("days") or DAYS_ALL
+            if not isinstance(days, list):
+                days = DAYS_ALL
+            days = [d for d in days if d in DAYS_ALL] or DAYS_ALL
+            cleaned.append({
+                "id": sid,
+                "name": str(s.get("name") or "").strip() or "Step",
+                "name_lb": str(s.get("name_lb") or s.get("name") or "").strip(),
+                "start": start,
+                "duration": duration,
+                "image": str(s.get("image") or "☕"),
+                "days": days,
+            })
+
+        # Apply to all entries (single-instance integration, but loop for safety)
+        for eid in list(hass.data[DOMAIN].keys()):
+            target_entry = hass.config_entries.async_get_entry(eid)
+            if target_entry is None:
+                continue
+            new_options = {**target_entry.options, CONF_STEPS: cleaned}
+            hass.config_entries.async_update_entry(target_entry, options=new_options)
+
     if not hass.services.has_service(DOMAIN, SERVICE_SKIP_STEP):
         hass.services.async_register(DOMAIN, SERVICE_SKIP_STEP, _skip_step)
         hass.services.async_register(DOMAIN, SERVICE_START_NOW, _start_now)
         hass.services.async_register(DOMAIN, SERVICE_SNOOZE, _snooze)
+        hass.services.async_register(DOMAIN, SERVICE_SET_STEPS, _set_steps)
 
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
@@ -166,6 +217,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator: MorningRoutineCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         await coordinator.async_stop()
     if not hass.data[DOMAIN]:
-        for svc in (SERVICE_SKIP_STEP, SERVICE_START_NOW, SERVICE_SNOOZE):
+        for svc in (SERVICE_SKIP_STEP, SERVICE_START_NOW, SERVICE_SNOOZE, SERVICE_SET_STEPS):
             hass.services.async_remove(DOMAIN, svc)
     return unload_ok

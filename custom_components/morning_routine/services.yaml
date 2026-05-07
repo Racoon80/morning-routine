@@ -20,3 +20,23 @@ snooze:
           max: 60
           step: 1
           unit_of_measurement: min
+
+set_steps:
+  name: Set step list
+  description: >
+    Replace the entire morning routine. Used internally by the in-card editor —
+    you can also call it from automations to switch between routines.
+  fields:
+    steps:
+      name: Steps
+      description: List of step dicts with name, name_lb, start, duration, image, days.
+      required: true
+      example: |
+        - name: Coffee
+          name_lb: Kaffi
+          start: "07:30"
+          duration: 15
+          image: "☕"
+          days: [mon, tue, wed, thu, fri]
+      selector:
+        object: {}

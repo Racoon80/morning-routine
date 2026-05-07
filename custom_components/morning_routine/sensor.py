@@ -65,6 +65,8 @@ class ActiveStepSensor(_Base):
     def extra_state_attributes(self) -> dict[str, Any]:
         data = self.coordinator.data or {}
         active = data.get("active")
+        # Raw steps list (with id + days) so the in-card editor can edit them
+        raw_steps = list(self._entry.options.get("steps", self._entry.data.get("steps", [])))
         return {
             "_mr_role": "active_step",
             ATTR_NAME: active["name"] if active else None,
@@ -74,6 +76,7 @@ class ActiveStepSensor(_Base):
             ATTR_TIME_LEFT: data.get("time_left", 0),
             ATTR_NEXT_STEP: data.get("next"),
             "schedule": data.get("schedule", []),
+            "all_steps": raw_steps,
             "entry_id": self._entry.entry_id,
         }
 

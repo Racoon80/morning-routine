@@ -1,8 +1,9 @@
 /**
- * Morning Routine Card v0.5.0
+ * Morning Routine Card v0.6.0
  *
  * - Fullscreen overlay during active step (huge emoji/image + green→red bar)
  * - Idle preview shows the day's full schedule with status indicators
+ * - Inline edit modal: add / edit / delete steps without leaving the dashboard
  * - Last 15 seconds: pulsing animation on bar + image
  * - Emoji or image URL — both supported in the same `image` field
  *
@@ -13,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.5.0";
+const VERSION = "0.6.0";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -155,17 +156,18 @@ class MorningRoutineCard extends HTMLElement {
       return;
     }
 
-    // Build schedule rows
+    // Build schedule rows with edit pencils
     const rows = schedule.length ? schedule.map((s) => {
       const statusClass = s.status; // active | upcoming | done
       const name = (language === "lb" ? s.name_lb : s.name) || s.name;
       const icon = this._iconHTML(s.image, "row");
       return `
-        <div class="row ${statusClass}">
+        <div class="row ${statusClass}" data-idx="${s.index}">
           <div class="row-icon">${icon}</div>
           <div class="row-name">${escapeHtml(name)}</div>
           <div class="row-time">${escapeHtml(s.start)}</div>
           <div class="row-status">${L.status[s.status]}</div>
+          <button class="row-edit" data-idx="${s.index}" title="${L.edit}">✏️</button>
         </div>
       `;
     }).join("") : `<div class="row empty">${L.noSteps}</div>`;
@@ -178,14 +180,153 @@ class MorningRoutineCard extends HTMLElement {
       <div class="idle">
         <div class="idle-header">
           <div class="title">🌅 ${L.title}</div>
-          <button class="edit-btn" id="edit-btn" title="${L.edit}">⚙️</button>
+          <button class="edit-btn" id="open-options-btn" title="${L.optionsLabel}">⚙️</button>
         </div>
         ${nextHint}
         <div class="schedule">${rows}</div>
+        <div class="schedule-foot">
+          <button class="add-btn" id="add-btn">＋ ${L.addStep}</button>
+        </div>
       </div>
     `;
-    const btn = this.shadowRoot.getElementById("edit-btn");
-    if (btn) btn.addEventListener("click", () => this._openOptions(data));
+    const optBtn = this.shadowRoot.getElementById("open-options-btn");
+    if (optBtn) optBtn.addEventListener("click", () => this._openOptions(data));
+    const addBtn = this.shadowRoot.getElementById("add-btn");
+    if (addBtn) addBtn.addEventListener("click", () => this._openModal(null, data, language));
+    this.shadowRoot.querySelectorAll(".row-edit").forEach((b) => {
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(b.dataset.idx, 10);
+        this._openModal(idx, data, language);
+      });
+    });
+  }
+
+  // ── modal editor ──────────────────────────────────────────────────────────
+  async _openModal(editIndex, data, language) {
+    const L = LABELS[language] || LABELS.en;
+    // Snapshot current step list from coordinator data (fall back to empty).
+    const currentSteps = await this._fetchSteps();
+    const editing = editIndex != null && currentSteps[editIndex];
+    const formState = editing
+      ? { ...editing }
+      : { name: "", name_lb: "", start: "07:30", duration: 15, image: "☕", days: ["mon","tue","wed","thu","fri"] };
+
+    let modal = this.shadowRoot.getElementById("mr-modal");
+    if (modal) modal.remove();
+    // Old modal-related styles too — clean before re-inject
+    this.shadowRoot.querySelectorAll("style[data-mr-modal]").forEach((s) => s.remove());
+    const tpl = document.createElement("template");
+    tpl.innerHTML = MODAL_HTML;
+    Array.from(tpl.content.children).forEach((node) => {
+      if (node.tagName === "STYLE") node.setAttribute("data-mr-modal", "1");
+      this.shadowRoot.appendChild(node);
+    });
+    modal = this.shadowRoot.getElementById("mr-modal");
+
+    // Populate form
+    const $ = (id) => modal.querySelector(`#${id}`);
+    $("modal-title").textContent = editing ? L.editStep : L.addStep;
+    $("f-name").value = formState.name || "";
+    $("f-name-lb").value = formState.name_lb || "";
+    $("f-start").value = (formState.start || "07:30").slice(0,5);
+    $("f-duration").value = formState.duration || 15;
+    $("f-image").value = formState.image || "☕";
+    $("emoji-preview").textContent = isEmoji(formState.image) ? formState.image : "🖼️";
+    if (!editing) $("delete-btn").style.display = "none";
+
+    // Days chips
+    const daysWrap = $("f-days");
+    const dayLabels = L.dayShort;
+    daysWrap.innerHTML = ["mon","tue","wed","thu","fri","sat","sun"].map((d, i) => `
+      <button type="button" class="day-chip ${formState.days?.includes(d) ? "on" : ""}" data-day="${d}">${dayLabels[i]}</button>
+    `).join("");
+    daysWrap.querySelectorAll(".day-chip").forEach((c) => {
+      c.addEventListener("click", () => c.classList.toggle("on"));
+    });
+
+    // Emoji grid
+    const emojiGrid = $("emoji-grid");
+    emojiGrid.innerHTML = COMMON_EMOJIS.map((e) =>
+      `<button type="button" class="emoji-pick ${e === formState.image ? "on" : ""}" data-emoji="${e}">${e}</button>`
+    ).join("");
+    emojiGrid.querySelectorAll(".emoji-pick").forEach((b) => {
+      b.addEventListener("click", () => {
+        emojiGrid.querySelectorAll(".emoji-pick.on").forEach((x) => x.classList.remove("on"));
+        b.classList.add("on");
+        $("f-image").value = b.dataset.emoji;
+        $("emoji-preview").textContent = b.dataset.emoji;
+      });
+    });
+    $("f-image").addEventListener("input", () => {
+      const v = $("f-image").value;
+      $("emoji-preview").textContent = isEmoji(v) ? (v || "·") : "🖼️";
+    });
+
+    // Translate field labels and buttons
+    $("modal-title").textContent = editing ? L.editStep : L.addStep;
+    modal.querySelector('label[for="f-name"]').textContent = L.fieldName;
+    modal.querySelector('label[for="f-name-lb"]').textContent = L.fieldNameLb;
+    modal.querySelector('label[for="f-start"]').textContent = L.fieldStart;
+    modal.querySelector('label[for="f-duration"]').textContent = L.fieldDuration;
+    modal.querySelector('label[for="f-image"]').textContent = L.fieldImage;
+    const daysLabel = modal.querySelectorAll("label")[5];
+    if (daysLabel) daysLabel.textContent = L.fieldDays;
+    $("save-btn").textContent = L.save;
+    $("cancel-btn-2").textContent = L.cancel;
+    $("delete-btn").innerHTML = "🗑️ " + L.delete;
+
+    // Buttons
+    $("cancel-btn").addEventListener("click", () => modal.close());
+    $("cancel-btn-2").addEventListener("click", () => modal.close());
+    $("modal-backdrop").addEventListener("click", () => modal.close());
+    $("delete-btn").addEventListener("click", async () => {
+      if (!confirm(L.confirmDelete)) return;
+      const newSteps = currentSteps.filter((_, i) => i !== editIndex);
+      await this._callSetSteps(newSteps);
+      modal.close();
+    });
+    $("save-btn").addEventListener("click", async () => {
+      const days = Array.from(daysWrap.querySelectorAll(".day-chip.on")).map((c) => c.dataset.day);
+      const newStep = {
+        id: editing?.id,
+        name: $("f-name").value.trim() || "Step",
+        name_lb: $("f-name-lb").value.trim() || $("f-name").value.trim(),
+        start: $("f-start").value || "07:30",
+        duration: parseInt($("f-duration").value, 10) || 15,
+        image: $("f-image").value || "☕",
+        days: days.length ? days : ["mon","tue","wed","thu","fri","sat","sun"],
+      };
+      const newSteps = [...currentSteps];
+      if (editing) {
+        newSteps[editIndex] = { ...newSteps[editIndex], ...newStep };
+      } else {
+        newSteps.push(newStep);
+      }
+      // Sort by start time so the schedule stays ordered.
+      newSteps.sort((a,b) => (a.start||"").localeCompare(b.start||""));
+      await this._callSetSteps(newSteps);
+      modal.close();
+    });
+
+    modal.showModal();
+  }
+
+  async _fetchSteps() {
+    // The active_step sensor exposes the raw step list as `all_steps`.
+    if (!this._hass) return [];
+    const eid = this._resolveEntity();
+    if (!eid) return [];
+    const st = this._hass.states[eid];
+    return st?.attributes?.all_steps || [];
+  }
+
+  async _callSetSteps(steps) {
+    try {
+      await this._hass.callService("morning_routine", "set_steps", { steps });
+    } catch (e) {
+      alert("Could not save steps: " + (e.message || e));
+    }
   }
 
   _stepLabel(data, language) {
@@ -361,7 +502,22 @@ const LABELS = {
     allDone: "Heute alles erledigt!",
     noSteps: "Noch keine Schritte konfiguriert",
     edit: "Bearbeiten",
+    optionsLabel: "Optionen öffnen",
+    addStep: "Schritt hinzufügen",
+    editStep: "Schritt bearbeiten",
+    confirmDelete: "Diesen Schritt wirklich löschen?",
+    save: "Speichern",
+    cancel: "Abbrechen",
+    delete: "Löschen",
+    fieldName: "Name",
+    fieldNameLb: "Name (Lëtzebuergesch)",
+    fieldStart: "Startzeit",
+    fieldDuration: "Dauer (min)",
+    fieldImage: "Bild / Emoji",
+    fieldDays: "Aktive Tage",
+    pickEmoji: "Emoji wählen oder URL eingeben",
     status: { active: "läuft", upcoming: "wartet", done: "fertig" },
+    dayShort: ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
   },
   lb: {
     title: "Moiesroutine",
@@ -369,7 +525,22 @@ const LABELS = {
     allDone: "Haut alles fäerdeg!",
     noSteps: "Nach keng Schrëtt konfiguréiert",
     edit: "Änneren",
+    optionsLabel: "Optiounen opmaachen",
+    addStep: "Schrëtt derbäisetzen",
+    editStep: "Schrëtt änneren",
+    confirmDelete: "Dëse Schrëtt wierklech läschen?",
+    save: "Späicheren",
+    cancel: "Ofbriechen",
+    delete: "Läschen",
+    fieldName: "Numm (Däitsch)",
+    fieldNameLb: "Numm (Lëtzebuergesch)",
+    fieldStart: "Startzäit",
+    fieldDuration: "Dauer (min)",
+    fieldImage: "Bild / Emoji",
+    fieldDays: "Aktiv Deeg",
+    pickEmoji: "Emoji wielen oder URL erafügen",
     status: { active: "leeft", upcoming: "waart", done: "fäerdeg" },
+    dayShort: ["Méi", "Dën", "Mët", "Don", "Fre", "Sam", "Son"],
   },
   en: {
     title: "Morning Routine",
@@ -377,9 +548,35 @@ const LABELS = {
     allDone: "All done for today!",
     noSteps: "No steps configured yet",
     edit: "Edit",
+    optionsLabel: "Open options",
+    addStep: "Add step",
+    editStep: "Edit step",
+    confirmDelete: "Really delete this step?",
+    save: "Save",
+    cancel: "Cancel",
+    delete: "Delete",
+    fieldName: "Name",
+    fieldNameLb: "Name (Lëtzebuergesch)",
+    fieldStart: "Start time",
+    fieldDuration: "Duration (min)",
+    fieldImage: "Picture / emoji",
+    fieldDays: "Active days",
+    pickEmoji: "Pick an emoji or paste a URL",
     status: { active: "active", upcoming: "upcoming", done: "done" },
+    dayShort: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   },
 };
+
+const COMMON_EMOJIS = [
+  "☕","🍵","🥛","🥣","🥐","🍞","🥚","🥞",
+  "🍎","🍌","🥪","🧇","🥨","🥯","🍇","🍓",
+  "🪥","🧼","🚿","🛁","💧","🧴","🧻","💊",
+  "👕","👖","🧥","🧦","👟","🥾","🧤","🧢",
+  "🎒","📚","✏️","📝","🎨","🎮","🧸","🖍️",
+  "🚗","🚌","🚲","🛴","🚂","🛵","🚪","🏫",
+  "🌞","🌙","⭐","🌈","🔔","✅","🎉","💪",
+  "🛏️","😴","🧴","🪞","🦷","👓","💼","🎵",
+];
 
 // ── styles ───────────────────────────────────────────────────────────────────
 const BASE_CSS = `
@@ -439,12 +636,41 @@ const BASE_CSS = `
   .schedule { display: flex; flex-direction: column; gap: 4px; }
   .row {
     display: grid;
-    grid-template-columns: 36px 1fr auto auto;
+    grid-template-columns: 36px 1fr auto auto auto;
     gap: 10px;
     align-items: center;
     padding: 8px 10px;
     border-radius: 8px;
     transition: background 0.2s;
+  }
+  .row-edit {
+    background: transparent; border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    opacity: 0.5;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .row-edit:hover { opacity: 1; background: var(--secondary-background-color); }
+  .schedule-foot {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+  }
+  .add-btn {
+    background: color-mix(in srgb, var(--primary-color, #03a9f4) 16%, transparent);
+    color: var(--primary-color, #03a9f4);
+    border: 1px dashed color-mix(in srgb, var(--primary-color, #03a9f4) 50%, transparent);
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.15s;
+  }
+  .add-btn:hover {
+    background: color-mix(in srgb, var(--primary-color, #03a9f4) 26%, transparent);
   }
   .row:hover { background: var(--secondary-background-color); }
   .row.active {
@@ -642,6 +868,218 @@ const OVERLAY_HTML = `
   </div>
   <div class="next-line" id="next"></div>
 </div>
+`;
+
+// ── modal markup (one-shot template) ────────────────────────────────────────
+const MODAL_HTML = `
+<dialog id="mr-modal" class="mr-dialog">
+  <div id="modal-backdrop" class="mr-backdrop"></div>
+  <div class="mr-dialog-body">
+    <div class="mr-dialog-header">
+      <h3 id="modal-title">Step</h3>
+      <button class="modal-close" id="cancel-btn">×</button>
+    </div>
+    <div class="mr-form">
+      <div class="form-row">
+        <label for="f-name">Name</label>
+        <input type="text" id="f-name" />
+      </div>
+      <div class="form-row">
+        <label for="f-name-lb">Name (Lëtzebuergesch)</label>
+        <input type="text" id="f-name-lb" />
+      </div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label for="f-start">Start</label>
+          <input type="time" id="f-start" />
+        </div>
+        <div class="form-row">
+          <label for="f-duration">Duration (min)</label>
+          <input type="number" id="f-duration" min="1" max="600" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="f-image">Picture / Emoji</label>
+        <div class="image-input-wrap">
+          <span id="emoji-preview" class="emoji-preview">☕</span>
+          <input type="text" id="f-image" />
+        </div>
+        <div id="emoji-grid" class="emoji-grid"></div>
+      </div>
+      <div class="form-row">
+        <label>Active days</label>
+        <div id="f-days" class="day-chips"></div>
+      </div>
+    </div>
+    <div class="mr-dialog-footer">
+      <button class="btn btn-danger" id="delete-btn">🗑️ Delete</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" id="cancel-btn-2">Cancel</button>
+      <button class="btn btn-primary" id="save-btn">Save</button>
+    </div>
+  </div>
+</dialog>
+<style>
+  .mr-dialog {
+    border: none;
+    background: transparent;
+    padding: 0;
+    max-width: 100vw; max-height: 100vh;
+    width: 100%; height: 100%;
+    overflow: visible;
+  }
+  .mr-dialog::backdrop { background: transparent; }
+  .mr-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    z-index: 0;
+  }
+  .mr-dialog-body {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(560px, 92vw);
+    max-height: 90vh;
+    background: var(--card-background-color, #1c1c1e);
+    color: var(--primary-text-color, #fff);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column;
+    z-index: 1;
+    overflow: hidden;
+  }
+  .mr-dialog-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--divider-color, rgba(255,255,255,0.1));
+  }
+  .mr-dialog-header h3 { margin: 0; font-size: 18px; font-weight: 700; }
+  .modal-close {
+    background: transparent; border: none;
+    cursor: pointer; font-size: 26px; line-height: 1;
+    color: var(--primary-text-color); opacity: 0.6;
+    width: 32px; height: 32px; border-radius: 6px;
+  }
+  .modal-close:hover { opacity: 1; background: var(--secondary-background-color); }
+  .mr-form {
+    padding: 18px 22px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .form-row { display: flex; flex-direction: column; gap: 6px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-row label {
+    font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    opacity: 0.7;
+  }
+  .form-row input[type="text"],
+  .form-row input[type="time"],
+  .form-row input[type="number"] {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--divider-color, rgba(255,255,255,0.15));
+    background: var(--secondary-background-color, rgba(255,255,255,0.05));
+    color: var(--primary-text-color);
+    font-size: 15px;
+    font-family: inherit;
+  }
+  .form-row input:focus {
+    outline: none;
+    border-color: var(--primary-color, #03a9f4);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color, #03a9f4) 30%, transparent);
+  }
+  .image-input-wrap {
+    display: flex; gap: 10px; align-items: center;
+  }
+  .emoji-preview {
+    font-size: 32px;
+    width: 50px; height: 50px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--secondary-background-color);
+    border-radius: 8px;
+    flex: 0 0 50px;
+  }
+  .image-input-wrap input { flex: 1; }
+  .emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--secondary-background-color);
+    border-radius: 8px;
+  }
+  .emoji-pick {
+    background: transparent; border: 2px solid transparent;
+    cursor: pointer; font-size: 22px;
+    padding: 6px; border-radius: 6px;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .emoji-pick:hover { background: rgba(255,255,255,0.08); }
+  .emoji-pick.on {
+    border-color: var(--primary-color, #03a9f4);
+    background: color-mix(in srgb, var(--primary-color, #03a9f4) 20%, transparent);
+  }
+  .day-chips {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .day-chip {
+    background: var(--secondary-background-color);
+    border: 1px solid transparent;
+    color: var(--primary-text-color);
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    opacity: 0.5;
+    transition: all 0.15s;
+  }
+  .day-chip:hover { opacity: 0.8; }
+  .day-chip.on {
+    background: var(--primary-color, #03a9f4);
+    color: var(--text-primary-color, #fff);
+    opacity: 1;
+    border-color: var(--primary-color, #03a9f4);
+  }
+  .mr-dialog-footer {
+    padding: 14px 22px;
+    border-top: 1px solid var(--divider-color, rgba(255,255,255,0.1));
+    display: flex; align-items: center; gap: 10px;
+  }
+  .btn {
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px; font-weight: 600;
+    font-family: inherit;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .btn-primary {
+    background: var(--primary-color, #03a9f4);
+    color: var(--text-primary-color, #fff);
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--primary-text-color);
+    opacity: 0.7;
+  }
+  .btn-ghost:hover { opacity: 1; background: var(--secondary-background-color); }
+  .btn-danger {
+    background: color-mix(in srgb, #ef4444 20%, transparent);
+    color: #ef4444;
+  }
+  .btn-danger:hover { background: color-mix(in srgb, #ef4444 35%, transparent); }
+  @media (max-width: 480px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .emoji-grid { grid-template-columns: repeat(7, 1fr); }
+  }
+</style>
 `;
 
 customElements.define("morning-routine-card", MorningRoutineCard);
