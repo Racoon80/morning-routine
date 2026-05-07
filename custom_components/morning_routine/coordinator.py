@@ -199,17 +199,36 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         }
 
     def _compute_active(self, now: datetime) -> int | None:
+        """Return the index of the active step.
+
+        When step time-windows overlap, the step with the LATEST start time
+        wins — a newer step takes focus over an older one that's still
+        running. The overridden step appears as 'skipped' in the schedule.
+        """
+        in_window: list[tuple[datetime, int]] = []
         for idx, step in enumerate(self._steps):
             if not step.runs_today(now):
                 continue
             start_dt = step.start_dt(now)
             end_dt = start_dt + step.duration
             if start_dt <= now < end_dt:
-                return idx
-        return None
+                in_window.append((start_dt, idx))
+        if not in_window:
+            return None
+        in_window.sort(reverse=True)
+        return in_window[0][1]
 
     def _today_schedule(self, now: datetime) -> list[dict]:
-        """Return all steps that run today, with status flags for the card."""
+        """Return all steps that run today, with status flags for the card.
+
+        Status:
+          done     — step's end time is in the past
+          active   — step is currently the chosen active step
+          skipped  — step's window contains 'now' but a later-starting step
+                     supersedes it (overlap handling)
+          upcoming — step's start time is in the future
+        """
+        active_idx = self._compute_active(now)
         sched: list[dict] = []
         for idx, step in enumerate(self._steps):
             if not step.runs_today(now):
@@ -219,7 +238,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             if now >= end_dt:
                 status = "done"
             elif start_dt <= now < end_dt:
-                status = "active"
+                status = "active" if idx == active_idx else "skipped"
             else:
                 status = "upcoming"
             sched.append({

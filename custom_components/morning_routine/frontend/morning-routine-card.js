@@ -14,9 +14,24 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.6.1";
+const VERSION = "0.7.0";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
+
+// Convert an emoji to a Twemoji SVG URL on jsDelivr.
+// Strips variation selector (FE0F) and joins remaining codepoints with -.
+const TWEMOJI_BASE = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg";
+function emojiToTwemojiUrl(emoji) {
+  if (!emoji || typeof emoji !== "string") return null;
+  const cps = [];
+  for (const ch of emoji) {
+    const cp = ch.codePointAt(0);
+    if (cp === 0xfe0f) continue;          // variation selector
+    cps.push(cp.toString(16));
+  }
+  if (!cps.length) return null;
+  return `${TWEMOJI_BASE}/${cps.join("-")}.svg`;
+}
 
 const fireEvent = (node, type, detail = {}) => {
   const evt = new Event(type, { bubbles: true, composed: true, cancelable: false });
@@ -50,7 +65,7 @@ class MorningRoutineCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { tint_mode: "mask" };
+    return { tint_mode: "mask", emoji_style: "twemoji" };
   }
 
   setConfig(config) {
@@ -58,6 +73,7 @@ class MorningRoutineCard extends HTMLElement {
       tint_mode: "mask",
       language: null,
       active_step_entity: null,
+      emoji_style: "twemoji",   // twemoji | native
       ...config,
     };
     this._renderPlaceholder();
@@ -305,7 +321,6 @@ class MorningRoutineCard extends HTMLElement {
     const $ = (id) => modal.querySelector(`#${id}`);
     $("modal-title").textContent = editing ? L.editStep : L.addStep;
     $("f-name").value = formState.name || "";
-    $("f-name-lb").value = formState.name_lb || "";
     $("f-start").value = (formState.start || "07:30").slice(0,5);
     $("f-duration").value = formState.duration || 15;
     $("f-image").value = formState.image || "☕";
@@ -343,11 +358,10 @@ class MorningRoutineCard extends HTMLElement {
     // Translate field labels and buttons
     $("modal-title").textContent = editing ? L.editStep : L.addStep;
     modal.querySelector('label[for="f-name"]').textContent = L.fieldName;
-    modal.querySelector('label[for="f-name-lb"]').textContent = L.fieldNameLb;
     modal.querySelector('label[for="f-start"]').textContent = L.fieldStart;
     modal.querySelector('label[for="f-duration"]').textContent = L.fieldDuration;
     modal.querySelector('label[for="f-image"]').textContent = L.fieldImage;
-    const daysLabel = modal.querySelectorAll("label")[5];
+    const daysLabel = modal.querySelectorAll("label")[4];
     if (daysLabel) daysLabel.textContent = L.fieldDays;
     $("save-btn").textContent = L.save;
     $("cancel-btn-2").textContent = L.cancel;
@@ -365,10 +379,13 @@ class MorningRoutineCard extends HTMLElement {
     });
     $("save-btn").addEventListener("click", async () => {
       const days = Array.from(daysWrap.querySelectorAll(".day-chip.on")).map((c) => c.dataset.day);
+      const name = $("f-name").value.trim() || "Step";
       const newStep = {
         id: editing?.id,
-        name: $("f-name").value.trim() || "Step",
-        name_lb: $("f-name-lb").value.trim() || $("f-name").value.trim(),
+        name,
+        // Keep name_lb in sync with name so existing data shape stays valid;
+        // the LB-specific field was removed from the form per user request.
+        name_lb: editing?.name_lb || name,
         start: $("f-start").value || "07:30",
         duration: parseInt($("f-duration").value, 10) || 15,
         image: $("f-image").value || "☕",
@@ -458,11 +475,19 @@ class MorningRoutineCard extends HTMLElement {
 
     // Render image / emoji
     const img = overlay.querySelector(".image");
-    img.classList.toggle("emoji", isEmoji(data.image));
-    img.classList.remove("filter", "plain", "mask");
+    img.classList.remove("emoji", "twemoji", "filter", "plain", "mask");
     if (isEmoji(data.image)) {
-      img.textContent = data.image || "";
-      img.style.removeProperty("--mr-img");
+      const useTwe = this._config.emoji_style !== "native";
+      const tweUrl = useTwe ? emojiToTwemojiUrl(data.image) : null;
+      if (tweUrl) {
+        img.classList.add("twemoji");
+        img.style.setProperty("--mr-img", `url("${tweUrl}")`);
+        img.textContent = "";
+      } else {
+        img.classList.add("emoji");
+        img.textContent = data.image || "";
+        img.style.removeProperty("--mr-img");
+      }
     } else {
       img.textContent = "";
       img.style.setProperty("--mr-img", `url("${data.image}")`);
@@ -493,6 +518,11 @@ class MorningRoutineCard extends HTMLElement {
   _iconHTML(value, size) {
     const cls = size === "small" ? "icon-small" : (size === "row" ? "icon-row" : "icon");
     if (isEmoji(value)) {
+      const useTwe = this._config?.emoji_style !== "native";
+      const tweUrl = useTwe ? emojiToTwemojiUrl(value) : null;
+      if (tweUrl) {
+        return `<span class="${cls} bg-img" style="--mr-row-img:url('${tweUrl}')"></span>`;
+      }
       return `<span class="${cls} emoji">${value}</span>`;
     }
     if (value) {
@@ -522,6 +552,13 @@ class MorningRoutineCardEditor extends HTMLElement {
         <span class="hint">Leave blank to auto-find the integration sensor.</span>
       </div>
       <div class="row">
+        <label>Emoji style</label>
+        <select id="emoji-style">
+          <option value="twemoji"${this._config.emoji_style !== "native" ? " selected" : ""}>Twemoji (CDN, prettier)</option>
+          <option value="native"${this._config.emoji_style === "native" ? " selected" : ""}>Native (system font, offline)</option>
+        </select>
+      </div>
+      <div class="row">
         <label>Tint mode (only for SVG/PNG, ignored for emojis)</label>
         <select id="tint">
           <option value="mask"${this._config.tint_mode === "mask" ? " selected" : ""}>mask (color-synced)</option>
@@ -541,6 +578,7 @@ class MorningRoutineCardEditor extends HTMLElement {
           config: {
             type: "custom:morning-routine-card",
             ...(entityVal && { active_step_entity: entityVal }),
+            emoji_style: this.shadowRoot.getElementById("emoji-style").value,
             tint_mode: this.shadowRoot.getElementById("tint").value,
             language: this.shadowRoot.getElementById("lang").value || null,
           },
@@ -550,6 +588,7 @@ class MorningRoutineCardEditor extends HTMLElement {
       this.dispatchEvent(event);
     };
     this.shadowRoot.getElementById("entity").addEventListener("change", fire);
+    this.shadowRoot.getElementById("emoji-style").addEventListener("change", fire);
     this.shadowRoot.getElementById("tint").addEventListener("change", fire);
     this.shadowRoot.getElementById("lang").addEventListener("change", fire);
   }
@@ -593,7 +632,7 @@ const LABELS = {
     fieldImage: "Bild / Emoji",
     fieldDays: "Aktive Tage",
     pickEmoji: "Emoji wählen oder URL eingeben",
-    status: { active: "läuft", upcoming: "wartet", done: "fertig" },
+    status: { active: "läuft", upcoming: "wartet", done: "fertig", skipped: "übersprungen" },
     dayShort: ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
   },
   lb: {
@@ -616,7 +655,7 @@ const LABELS = {
     fieldImage: "Bild / Emoji",
     fieldDays: "Aktiv Deeg",
     pickEmoji: "Emoji wielen oder URL erafügen",
-    status: { active: "leeft", upcoming: "waart", done: "fäerdeg" },
+    status: { active: "leeft", upcoming: "waart", done: "fäerdeg", skipped: "iwwersprongen" },
     dayShort: ["Méi", "Dën", "Mët", "Don", "Fre", "Sam", "Son"],
   },
   en: {
@@ -639,7 +678,7 @@ const LABELS = {
     fieldImage: "Picture / emoji",
     fieldDays: "Active days",
     pickEmoji: "Pick an emoji or paste a URL",
-    status: { active: "active", upcoming: "upcoming", done: "done" },
+    status: { active: "active", upcoming: "upcoming", done: "done", skipped: "skipped" },
     dayShort: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   },
 };
@@ -755,6 +794,16 @@ const BASE_CSS = `
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color, #03a9f4) 40%, transparent);
   }
   .row.done { opacity: 0.45; }
+  .row.skipped {
+    opacity: 0.5;
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  }
+  .row.skipped .row-status {
+    background: color-mix(in srgb, #f59e0b 20%, transparent);
+    color: #f59e0b;
+    opacity: 1;
+  }
   .row.empty { opacity: 0.6; font-size: 13px; padding: 14px; justify-content: center; display: flex; }
   .row-icon { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
   .row-name { font-size: 14px; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; }
@@ -845,6 +894,16 @@ const OVERLAY_HTML = `
   .image.emoji {
     font-size: clamp(140px, 32vw, 360px);
     line-height: 1;
+    filter: drop-shadow(0 8px 30px var(--mr-color-soft));
+    animation: gentle-float 4s ease-in-out infinite;
+  }
+  .image.twemoji {
+    width: clamp(220px, 45vw, 520px);
+    height: clamp(220px, 45vw, 520px);
+    background-image: var(--mr-img);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
     filter: drop-shadow(0 8px 30px var(--mr-color-soft));
     animation: gentle-float 4s ease-in-out infinite;
   }
@@ -965,10 +1024,6 @@ const MODAL_HTML = `
       <div class="form-row">
         <label for="f-name">Name</label>
         <input type="text" id="f-name" />
-      </div>
-      <div class="form-row">
-        <label for="f-name-lb">Name (Lëtzebuergesch)</label>
-        <input type="text" id="f-name-lb" />
       </div>
       <div class="form-grid">
         <div class="form-row">
