@@ -73,6 +73,8 @@ class ActiveStepSensor(_Base):
             ATTR_PROGRESS: data.get("progress", 0.0),
             ATTR_TIME_LEFT: data.get("time_left", 0),
             ATTR_NEXT_STEP: data.get("next"),
+            "schedule": data.get("schedule", []),
+            "entry_id": self._entry.entry_id,
         }
 
 

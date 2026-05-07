@@ -139,7 +139,13 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             self._active_idx = new_idx
 
         if new_idx is None:
-            return {"active": None, "progress": 0.0, "time_left": 0, "next": self._next_step_today(now)}
+            return {
+                "active": None,
+                "progress": 0.0,
+                "time_left": 0,
+                "next": self._next_step_today(now),
+                "schedule": self._today_schedule(now),
+            }
 
         step = self._steps[new_idx]
         start_dt = step.start_dt(now)
@@ -159,6 +165,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             "progress": progress,
             "time_left": time_left,
             "next": self._next_step_today(now, after_idx=new_idx),
+            "schedule": self._today_schedule(now),
         }
 
     def _compute_active(self, now: datetime) -> int | None:
@@ -170,6 +177,31 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             if start_dt <= now < end_dt:
                 return idx
         return None
+
+    def _today_schedule(self, now: datetime) -> list[dict]:
+        """Return all steps that run today, with status flags for the card."""
+        sched: list[dict] = []
+        for idx, step in enumerate(self._steps):
+            if not step.runs_today(now):
+                continue
+            start_dt = step.start_dt(now)
+            end_dt = start_dt + step.duration
+            if now >= end_dt:
+                status = "done"
+            elif start_dt <= now < end_dt:
+                status = "active"
+            else:
+                status = "upcoming"
+            sched.append({
+                "index": idx,
+                "name": step.name,
+                "name_lb": step.name_lb,
+                "image": step.image,
+                "start": step.start.strftime("%H:%M"),
+                "duration": int(step.duration.total_seconds()),
+                "status": status,
+            })
+        return sched
 
     def _next_step_today(self, now: datetime, after_idx: int | None = None) -> dict | None:
         for idx, step in enumerate(self._steps):

@@ -1,16 +1,28 @@
 /**
- * Morning Routine Card
- * Fullscreen overlay that takes over the dashboard when a step is active.
- * Image and progress bar share a synchronized green→red color.
+ * Morning Routine Card v0.5.0
  *
- * Usage in Lovelace:
+ * - Fullscreen overlay during active step (huge emoji/image + green→red bar)
+ * - Idle preview shows the day's full schedule with status indicators
+ * - Last 15 seconds: pulsing animation on bar + image
+ * - Emoji or image URL — both supported in the same `image` field
+ *
+ * Configuration:
  *   type: custom:morning-routine-card
- *   active_step_entity: sensor.morning_routine_active_step
- *   language: de   # de | lb | en   (optional, defaults to HA user lang)
- *   tint_mode: mask  # mask | filter | none
+ *   tint_mode: mask | filter | none   (only used for SVG/PNG, default: mask)
+ *   language: de | lb | en            (omit to follow HA user language)
+ *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.4.3";
+const VERSION = "0.5.0";
+
+const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
+
+const fireEvent = (node, type, detail = {}) => {
+  const evt = new Event(type, { bubbles: true, composed: true, cancelable: false });
+  Object.assign(evt, { detail });
+  node.dispatchEvent(evt);
+  return evt;
+};
 
 class MorningRoutineCard extends HTMLElement {
   constructor() {
@@ -19,6 +31,7 @@ class MorningRoutineCard extends HTMLElement {
     this._hass = null;
     this._config = null;
     this._lastStepName = null;
+    this._renderedOnce = false;
   }
 
   static getConfigElement() {
@@ -26,7 +39,6 @@ class MorningRoutineCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    // No fixed entity — card auto-discovers via _mr_role marker.
     return { tint_mode: "mask" };
   }
 
@@ -46,30 +58,15 @@ class MorningRoutineCard extends HTMLElement {
     this._render();
   }
 
-  /** Always render at least an empty ha-card so the dashboard picker
-   *  considers the element "loaded" even before hass is wired up. */
-  _renderPlaceholder() {
-    if (this.shadowRoot.querySelector("ha-card, #overlay")) return;
-    const tpl = document.createElement("div");
-    tpl.innerHTML = `
-      <style>
-        :host { display: block; }
-        ha-card.mr-placeholder {
-          padding: 14px 16px;
-          font-size: 14px;
-          opacity: 0.7;
-          color: var(--primary-text-color);
-          border-radius: 12px;
-        }
-      </style>
-      <ha-card class="mr-placeholder" id="mr-placeholder">Morning Routine</ha-card>
-    `;
-    this.shadowRoot.appendChild(tpl);
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
   }
 
-  _removePlaceholder() {
-    const ph = this.shadowRoot.getElementById("mr-placeholder");
-    if (ph) ph.remove();
+  getCardSize() {
+    const data = this._readData();
+    if (data && data.schedule && data.schedule.length) return Math.min(8, 1 + data.schedule.length);
+    return 2;
   }
 
   _resolveEntity() {
@@ -77,309 +74,217 @@ class MorningRoutineCard extends HTMLElement {
     if (!this._hass) return null;
     for (const [eid, st] of Object.entries(this._hass.states)) {
       if (!eid.startsWith("sensor.")) continue;
-      if (st && st.attributes && st.attributes._mr_role === "active_step") {
-        return eid;
-      }
+      if (st && st.attributes && st.attributes._mr_role === "active_step") return eid;
     }
     return null;
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this._render();
-  }
-
-  getCardSize() {
-    return 1;
-  }
-
-  // ── core ──────────────────────────────────────────────────────────────────
-  _render() {
-    if (!this._hass || !this._config) return;
-    const entityId = this._resolveEntity();
-    if (!entityId) {
-      this._mountOverlay(false);
-      return;
-    }
-    const stateObj = this._hass.states[entityId];
-
-    const active = stateObj && stateObj.state && stateObj.state !== "unknown" && stateObj.state !== "unavailable" && stateObj.state !== "None"
-      ? stateObj.state
-      : null;
-    const attrs = (stateObj && stateObj.attributes) || {};
-    const progress = Math.max(0, Math.min(1, attrs.progress || 0));
-    const timeLeft = attrs.time_left || 0;
-    const image = attrs.image || "";
-    const language = this._config.language || (this._hass.language || "en").slice(0, 2);
-    const name = (language === "lb" ? attrs.name_lb : attrs.name) || active || "";
-    const next = attrs.next_step || null;
-
-    if (!active) {
-      this._mountOverlay(false);
-      this._mountIdle({ next, language });
-      this._removePlaceholder();
-      this._lastStepName = null;
-      return;
-    }
-
-    this._mountIdle(null);
-    this._mountOverlay(true);
-    this._removePlaceholder();
-    this._paint({ name, image, progress, timeLeft, next, language });
-
-    if (active !== this._lastStepName) {
-      this._lastStepName = active;
-      this._flashIn();
-    }
-  }
-
-  _mountIdle(state) {
-    let idle = this.shadowRoot.getElementById("mr-idle");
-    if (!state) {
-      if (idle) idle.remove();
-      return;
-    }
-    if (!idle) {
-      const wrapper = document.createElement("div");
-      wrapper.innerHTML = `
-        <style>
-          ha-card.mr-idle {
-            padding: 16px 18px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            border-radius: 12px;
-          }
-          ha-card.mr-idle .icon {
-            width: 40px; height: 40px;
-            background: var(--primary-color, #03a9f4);
-            -webkit-mask: var(--mr-idle-img) center / contain no-repeat;
-                    mask: var(--mr-idle-img) center / contain no-repeat;
-            flex: 0 0 auto;
-          }
-          ha-card.mr-idle .text {
-            display: flex; flex-direction: column; gap: 2px;
-          }
-          ha-card.mr-idle .title {
-            font-size: 15px; font-weight: 600;
-            color: var(--primary-text-color);
-          }
-          ha-card.mr-idle .sub {
-            font-size: 13px; opacity: 0.7;
-            color: var(--primary-text-color);
-          }
-        </style>
-        <ha-card class="mr-idle" id="mr-idle">
-          <div class="icon" id="mr-idle-icon"></div>
-          <div class="text">
-            <div class="title" id="mr-idle-title"></div>
-            <div class="sub" id="mr-idle-sub"></div>
-          </div>
-        </ha-card>
-      `;
-      this.shadowRoot.appendChild(wrapper);
-      idle = this.shadowRoot.getElementById("mr-idle");
-    }
-    const { next, language } = state;
-    const labels = {
-      de: { title: "Morning Routine", noNext: "Heute keine weiteren Schritte" },
-      lb: { title: "Moiesroutine", noNext: "Haut keng weider Schrëtt" },
-      en: { title: "Morning Routine", noNext: "No more steps today" },
+  _readData() {
+    if (!this._hass) return null;
+    const eid = this._resolveEntity();
+    if (!eid) return null;
+    const st = this._hass.states[eid];
+    if (!st) return null;
+    return {
+      state: st.state,
+      ...st.attributes,
+      _entity: eid,
+      _entryId: st.attributes.entry_id,
     };
-    const L = labels[language] || labels.en;
-    if (next) {
-      const nextName = (language === "lb" ? next.name_lb : next.name) || next.name;
-      this.shadowRoot.getElementById("mr-idle-title").textContent = L.title;
-      this.shadowRoot.getElementById("mr-idle-sub").textContent = `${nextName} · ${next.start}`;
-      if (next.image) {
-        idle.style.setProperty("--mr-idle-img", `url("${next.image}")`);
-      }
-    } else {
-      this.shadowRoot.getElementById("mr-idle-title").textContent = L.title;
-      this.shadowRoot.getElementById("mr-idle-sub").textContent = L.noNext;
-      idle.style.setProperty("--mr-idle-img", `url("/morning_routine_frontend/images/done.svg")`);
-    }
   }
 
-  _mountOverlay(visible) {
-    let overlay = this.shadowRoot.getElementById("overlay");
-    if (!visible) {
-      if (overlay) overlay.remove();
-      return;
-    }
-    if (overlay) return;
-
+  // ── render ────────────────────────────────────────────────────────────────
+  _renderPlaceholder() {
+    if (this._renderedOnce) return;
+    this._renderedOnce = true;
     this.shadowRoot.innerHTML = `
       <style>
         :host { display: block; }
-        #overlay {
-          position: fixed;
-          inset: 0;
-          z-index: 9999;
-          background: var(--mr-bg, #0e0f12);
-          color: #fff;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          opacity: 0;
-          transition: opacity 250ms ease;
-          padding: 4vh 4vw;
-          box-sizing: border-box;
-        }
-        #overlay.shown { opacity: 1; }
-        .name {
-          font-size: clamp(28px, 6vw, 96px);
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          margin-bottom: 4vh;
-          text-align: center;
-          color: var(--mr-color, #4ade80);
-          transition: color 600ms ease;
-        }
-        .image-wrap {
-          flex: 1;
-          width: 100%;
-          max-height: 60vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 4vh;
-        }
-        .image {
-          width: clamp(180px, 40vw, 480px);
-          height: clamp(180px, 40vw, 480px);
-          background-color: var(--mr-color, #4ade80);
-          -webkit-mask-image: var(--mr-img);
-                  mask-image: var(--mr-img);
-          -webkit-mask-size: contain;
-                  mask-size: contain;
-          -webkit-mask-repeat: no-repeat;
-                  mask-repeat: no-repeat;
-          -webkit-mask-position: center;
-                  mask-position: center;
-          transition: background-color 600ms ease;
-        }
-        .image.filter {
-          background: none;
-          background-image: var(--mr-img);
-          background-size: contain;
-          background-repeat: no-repeat;
-          background-position: center;
-          filter: hue-rotate(var(--mr-hue, 0deg)) saturate(1.2);
-          -webkit-mask: none;
-                  mask: none;
-        }
-        .image.plain {
-          background: none;
-          background-image: var(--mr-img);
-          background-size: contain;
-          background-repeat: no-repeat;
-          background-position: center;
-          -webkit-mask: none;
-                  mask: none;
-        }
-        .bar-wrap {
-          width: 100%;
-          max-width: 900px;
-          display: flex;
-          flex-direction: column;
-          gap: 1.2vh;
-        }
-        .bar {
-          height: clamp(28px, 5vh, 56px);
-          background: rgba(255,255,255,0.12);
-          border-radius: 999px;
-          overflow: hidden;
-          position: relative;
-        }
-        .bar-fill {
-          height: 100%;
-          width: 0%;
-          background: var(--mr-color, #4ade80);
-          border-radius: 999px;
-          transition: width 900ms linear, background-color 600ms ease;
-        }
-        .meta {
-          display: flex;
-          justify-content: space-between;
-          font-size: clamp(16px, 2.4vw, 28px);
-          opacity: 0.85;
-        }
-        .next {
-          margin-top: 3vh;
-          font-size: clamp(14px, 2vw, 22px);
-          opacity: 0.5;
-          text-align: center;
-        }
+        ${BASE_CSS}
       </style>
-      <div id="overlay">
-        <div class="name" id="name"></div>
-        <div class="image-wrap"><div class="image" id="img"></div></div>
-        <div class="bar-wrap">
-          <div class="bar"><div class="bar-fill" id="fill"></div></div>
-          <div class="meta">
-            <span id="left"></span>
-            <span id="pct"></span>
-          </div>
-        </div>
-        <div class="next" id="next"></div>
-      </div>
+      <ha-card class="mr-host" id="mr-host">
+        <div class="idle-loading">Morning Routine</div>
+      </ha-card>
+      <div id="overlay-mount"></div>
     `;
   }
 
-  _paint({ name, image, progress, timeLeft, next, language }) {
-    const overlay = this.shadowRoot.getElementById("overlay");
-    if (!overlay) return;
+  _render() {
+    if (!this._renderedOnce) this._renderPlaceholder();
+    if (!this._hass || !this._config) return;
+    const data = this._readData();
+    if (!data) return;
 
+    const language = this._config.language || (this._hass.language || "en").slice(0, 2);
+    const active = (data.state && data.state !== "unknown" && data.state !== "unavailable" && data.state !== "None") ? data.state : null;
+
+    if (active) {
+      this._renderHostIdle(data, language, /*minimized*/ true);
+      this._renderOverlay(data, language);
+    } else {
+      this._removeOverlay();
+      this._renderHostIdle(data, language, false);
+    }
+
+    if (active !== this._lastStepName) {
+      this._lastStepName = active;
+      if (active) this._flashIn();
+    }
+  }
+
+  // ── idle ha-card body ─────────────────────────────────────────────────────
+  _renderHostIdle(data, language, minimized) {
+    const host = this.shadowRoot.getElementById("mr-host");
+    if (!host) return;
+    const L = LABELS[language] || LABELS.en;
+    const schedule = data.schedule || [];
+    const next = data.next_step || null;
+
+    if (minimized) {
+      // While overlay is showing, the underlying card is hidden behind it,
+      // but we still keep something simple here.
+      host.innerHTML = `
+        <div class="idle-mini">
+          <div class="idle-emoji-mini">${this._iconHTML(data.image, "small")}</div>
+          <div class="idle-text">
+            <div class="idle-title">${L.title}</div>
+            <div class="idle-sub">${escapeHtml(this._stepLabel(data, language))}</div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Build schedule rows
+    const rows = schedule.length ? schedule.map((s) => {
+      const statusClass = s.status; // active | upcoming | done
+      const name = (language === "lb" ? s.name_lb : s.name) || s.name;
+      const icon = this._iconHTML(s.image, "row");
+      return `
+        <div class="row ${statusClass}">
+          <div class="row-icon">${icon}</div>
+          <div class="row-name">${escapeHtml(name)}</div>
+          <div class="row-time">${escapeHtml(s.start)}</div>
+          <div class="row-status">${L.status[s.status]}</div>
+        </div>
+      `;
+    }).join("") : `<div class="row empty">${L.noSteps}</div>`;
+
+    const nextHint = next
+      ? `<div class="next-hint"><span class="dot"></span>${L.nextLabel}: <strong>${escapeHtml((language==="lb"?next.name_lb:next.name) || next.name)}</strong> · ${escapeHtml(next.start)}</div>`
+      : `<div class="next-hint done"><span class="dot done"></span>${L.allDone}</div>`;
+
+    host.innerHTML = `
+      <div class="idle">
+        <div class="idle-header">
+          <div class="title">🌅 ${L.title}</div>
+          <button class="edit-btn" id="edit-btn" title="${L.edit}">⚙️</button>
+        </div>
+        ${nextHint}
+        <div class="schedule">${rows}</div>
+      </div>
+    `;
+    const btn = this.shadowRoot.getElementById("edit-btn");
+    if (btn) btn.addEventListener("click", () => this._openOptions(data));
+  }
+
+  _stepLabel(data, language) {
+    const name = (language === "lb" ? data.name_lb : data.name) || data.name || "";
+    const m = Math.floor((data.time_left || 0) / 60);
+    const s = (data.time_left || 0) % 60;
+    return `${name} · ${m}:${String(s).padStart(2,"0")}`;
+  }
+
+  _openOptions(data) {
+    // Navigate to the integration's options page in HA UI.
+    const path = "/config/integrations/integration/morning_routine";
+    window.history.pushState(null, "", path);
+    fireEvent(window, "location-changed", { replace: false });
+  }
+
+  // ── fullscreen overlay ────────────────────────────────────────────────────
+  _renderOverlay(data, language) {
+    const mount = this.shadowRoot.getElementById("overlay-mount");
+    if (!mount) return;
+    let overlay = mount.querySelector("#overlay");
+    if (!overlay) {
+      mount.innerHTML = OVERLAY_HTML;
+      overlay = mount.querySelector("#overlay");
+    }
+
+    const progress = Math.max(0, Math.min(1, data.progress || 0));
+    const timeLeft = data.time_left || 0;
     const hue = Math.round(120 * (1 - progress));
-    const color = `hsl(${hue}, 75%, 55%)`;
+    const color = `hsl(${hue}, 80%, 55%)`;
+    const colorSoft = `hsla(${hue}, 80%, 55%, 0.25)`;
+
     overlay.style.setProperty("--mr-color", color);
+    overlay.style.setProperty("--mr-color-soft", colorSoft);
     overlay.style.setProperty("--mr-hue", `${hue - 120}deg`);
-    if (image) overlay.style.setProperty("--mr-img", `url("${image}")`);
 
-    const img = this.shadowRoot.getElementById("img");
-    img.classList.remove("filter", "plain");
-    if (this._config.tint_mode === "filter") img.classList.add("filter");
-    else if (this._config.tint_mode === "none") img.classList.add("plain");
+    const name = (language === "lb" ? data.name_lb : data.name) || "";
+    const next = data.next_step;
+    overlay.querySelector(".name").textContent = name;
+    overlay.querySelector("#fill").style.width = `${progress * 100}%`;
+    overlay.querySelector("#pct").textContent = `${Math.round(progress * 100)}%`;
+    overlay.querySelector("#left").textContent = formatTime(timeLeft, language);
 
-    this.shadowRoot.getElementById("name").textContent = name;
-    this.shadowRoot.getElementById("fill").style.width = `${progress * 100}%`;
-    this.shadowRoot.getElementById("pct").textContent = `${Math.round(progress * 100)}%`;
-    this.shadowRoot.getElementById("left").textContent = this._formatTime(timeLeft, language);
-
-    const nextEl = this.shadowRoot.getElementById("next");
+    const nextEl = overlay.querySelector("#next");
     if (next) {
-      const nextLabel = (language === "lb" ? next.name_lb : next.name) || next.name;
-      const labelPrefix = { de: "Danach", lb: "Duerno", en: "Next" }[language] || "Next";
-      nextEl.textContent = `${labelPrefix}: ${nextLabel} · ${next.start}`;
+      const nextName = (language === "lb" ? next.name_lb : next.name) || next.name;
+      const labels = { de: "Danach", lb: "Duerno", en: "Next" };
+      nextEl.textContent = `${labels[language] || "Next"}: ${nextName} · ${next.start}`;
     } else {
       nextEl.textContent = "";
     }
 
+    // Render image / emoji
+    const img = overlay.querySelector(".image");
+    img.classList.toggle("emoji", isEmoji(data.image));
+    img.classList.remove("filter", "plain", "mask");
+    if (isEmoji(data.image)) {
+      img.textContent = data.image || "";
+      img.style.removeProperty("--mr-img");
+    } else {
+      img.textContent = "";
+      img.style.setProperty("--mr-img", `url("${data.image}")`);
+      const mode = this._config.tint_mode || "mask";
+      img.classList.add(mode);
+    }
+
+    // Last-15s pulse
+    overlay.classList.toggle("urgent", timeLeft > 0 && timeLeft <= 15);
+
     requestAnimationFrame(() => overlay.classList.add("shown"));
   }
 
+  _removeOverlay() {
+    const mount = this.shadowRoot.getElementById("overlay-mount");
+    if (mount) mount.innerHTML = "";
+  }
+
   _flashIn() {
-    const overlay = this.shadowRoot.getElementById("overlay");
+    const overlay = this.shadowRoot.querySelector("#overlay");
     if (!overlay) return;
     overlay.animate(
-      [{ transform: "scale(0.96)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }],
-      { duration: 350, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+      [{ transform: "scale(0.92)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }],
+      { duration: 400, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
     );
   }
 
-  _formatTime(seconds, language) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    const mLabel = { de: "min", lb: "min", en: "min" }[language] || "min";
-    const sLabel = { de: "s", lb: "s", en: "s" }[language] || "s";
-    if (m > 0) return `${m}${mLabel} ${s.toString().padStart(2, "0")}${sLabel}`;
-    return `${s}${sLabel}`;
+  _iconHTML(value, size) {
+    const cls = size === "small" ? "icon-small" : (size === "row" ? "icon-row" : "icon");
+    if (isEmoji(value)) {
+      return `<span class="${cls} emoji">${value}</span>`;
+    }
+    if (value) {
+      return `<span class="${cls} bg-img" style="--mr-row-img:url('${value}')"></span>`;
+    }
+    return `<span class="${cls}">·</span>`;
   }
 }
 
+// Editor (config UI in dashboard) — minimal, since auto-discovery handles defaults
 class MorningRoutineCardEditor extends HTMLElement {
   setConfig(config) { this._config = config; this._render(); }
   set hass(hass) { this._hass = hass; }
@@ -391,22 +296,24 @@ class MorningRoutineCardEditor extends HTMLElement {
         .row { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; }
         label { font-size: 13px; opacity: 0.8; }
         input, select { padding: 8px; border-radius: 6px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); }
+        .hint { font-size: 12px; opacity: 0.6; }
       </style>
       <div class="row">
-        <label>Active step entity (leave blank for auto-discovery)</label>
-        <input id="entity" value="${this._config.active_step_entity || ""}" placeholder="auto" />
+        <label>Active step entity</label>
+        <input id="entity" value="${this._config.active_step_entity || ""}" placeholder="auto-discover" />
+        <span class="hint">Leave blank to auto-find the integration sensor.</span>
       </div>
       <div class="row">
-        <label>Tint mode (mask works best for monochrome icons)</label>
+        <label>Tint mode (only for SVG/PNG, ignored for emojis)</label>
         <select id="tint">
-          <option value="mask"${this._config.tint_mode === "mask" ? " selected" : ""}>mask</option>
-          <option value="filter"${this._config.tint_mode === "filter" ? " selected" : ""}>filter</option>
+          <option value="mask"${this._config.tint_mode === "mask" ? " selected" : ""}>mask (color-synced)</option>
+          <option value="filter"${this._config.tint_mode === "filter" ? " selected" : ""}>filter (hue-rotate)</option>
           <option value="none"${this._config.tint_mode === "none" ? " selected" : ""}>none</option>
         </select>
       </div>
       <div class="row">
-        <label>Language override (blank = follow HA)</label>
-        <input id="lang" value="${this._config.language || ""}" placeholder="de | lb | en" />
+        <label>Language override</label>
+        <input id="lang" value="${this._config.language || ""}" placeholder="de | lb | en (blank = HA default)" />
       </div>
     `;
     const fire = () => {
@@ -430,20 +337,329 @@ class MorningRoutineCardEditor extends HTMLElement {
   }
 }
 
+// ── helpers ──────────────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  if (str == null) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatTime(seconds, language) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m > 0) return `${m}:${String(s).padStart(2, "0")} min`;
+  return `${s}s`;
+}
+
+const LABELS = {
+  de: {
+    title: "Morgenroutine",
+    nextLabel: "Als Nächstes",
+    allDone: "Heute alles erledigt!",
+    noSteps: "Noch keine Schritte konfiguriert",
+    edit: "Bearbeiten",
+    status: { active: "läuft", upcoming: "wartet", done: "fertig" },
+  },
+  lb: {
+    title: "Moiesroutine",
+    nextLabel: "Als Nächst",
+    allDone: "Haut alles fäerdeg!",
+    noSteps: "Nach keng Schrëtt konfiguréiert",
+    edit: "Änneren",
+    status: { active: "leeft", upcoming: "waart", done: "fäerdeg" },
+  },
+  en: {
+    title: "Morning Routine",
+    nextLabel: "Up next",
+    allDone: "All done for today!",
+    noSteps: "No steps configured yet",
+    edit: "Edit",
+    status: { active: "active", upcoming: "upcoming", done: "done" },
+  },
+};
+
+// ── styles ───────────────────────────────────────────────────────────────────
+const BASE_CSS = `
+  ha-card.mr-host {
+    padding: 16px;
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .idle-loading {
+    padding: 4px;
+    font-size: 14px;
+    opacity: 0.7;
+    color: var(--primary-text-color);
+  }
+  .idle-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .idle-header .title {
+    font-size: 17px; font-weight: 700;
+    color: var(--primary-text-color);
+    letter-spacing: -0.01em;
+  }
+  .edit-btn {
+    background: transparent; border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: var(--primary-text-color);
+    opacity: 0.6;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .edit-btn:hover { opacity: 1; background: var(--secondary-background-color); }
+  .next-hint {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px;
+    color: var(--primary-text-color);
+    opacity: 0.85;
+    padding: 8px 10px;
+    background: var(--primary-color, #03a9f4);
+    background: linear-gradient(90deg, var(--primary-color, #03a9f4), var(--primary-color, #03a9f4));
+    background-color: color-mix(in srgb, var(--primary-color, #03a9f4) 12%, transparent);
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  .next-hint.done {
+    background-color: color-mix(in srgb, #4ade80 14%, transparent);
+  }
+  .next-hint .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--primary-color, #03a9f4);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color, #03a9f4) 24%, transparent);
+    animation: pulse-soft 2s ease-in-out infinite;
+  }
+  .next-hint .dot.done { background: #4ade80; box-shadow: 0 0 0 4px rgba(74,222,128,0.25); animation: none; }
+  .schedule { display: flex; flex-direction: column; gap: 4px; }
+  .row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+  .row:hover { background: var(--secondary-background-color); }
+  .row.active {
+    background: color-mix(in srgb, var(--primary-color, #03a9f4) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color, #03a9f4) 40%, transparent);
+  }
+  .row.done { opacity: 0.45; }
+  .row.empty { opacity: 0.6; font-size: 13px; padding: 14px; justify-content: center; display: flex; }
+  .row-icon { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  .row-name { font-size: 14px; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; }
+  .row-time { font-size: 13px; color: var(--primary-text-color); opacity: 0.7; font-variant-numeric: tabular-nums; }
+  .row-status {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--secondary-background-color);
+    color: var(--primary-text-color); opacity: 0.65;
+  }
+  .row.active .row-status {
+    background: var(--primary-color, #03a9f4);
+    color: var(--text-primary-color, #fff);
+    opacity: 1;
+  }
+  .row.done .row-status {
+    background: rgba(74,222,128,0.2);
+    color: #4ade80;
+    opacity: 1;
+  }
+  .icon-row.bg-img {
+    width: 26px; height: 26px;
+    background-image: var(--mr-row-img);
+    background-size: contain; background-repeat: no-repeat; background-position: center;
+    display: inline-block;
+  }
+  .idle-mini { display: flex; align-items: center; gap: 12px; }
+  .idle-emoji-mini { font-size: 28px; }
+  .idle-text { display: flex; flex-direction: column; }
+  .idle-title { font-size: 14px; font-weight: 600; color: var(--primary-text-color); }
+  .idle-sub { font-size: 12px; opacity: 0.7; color: var(--primary-text-color); }
+  @keyframes pulse-soft {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+  }
+`;
+
+const OVERLAY_HTML = `
+<style>
+  #overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: radial-gradient(circle at 50% 30%, var(--mr-color-soft), #0a0b0f 70%);
+    color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    opacity: 0; transition: opacity 250ms ease;
+    padding: 4vh 4vw;
+    box-sizing: border-box;
+  }
+  #overlay.shown { opacity: 1; }
+  .name {
+    font-size: clamp(28px, 6vw, 96px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 4vh;
+    text-align: center;
+    color: var(--mr-color, #4ade80);
+    transition: color 800ms ease;
+    text-shadow: 0 4px 30px var(--mr-color-soft);
+  }
+  .image-wrap {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: 55vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 4vh;
+    position: relative;
+  }
+  .image-wrap::before {
+    content: "";
+    position: absolute;
+    width: clamp(220px, 50vw, 600px);
+    height: clamp(220px, 50vw, 600px);
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--mr-color-soft), transparent 65%);
+    z-index: 0;
+    transition: background 800ms ease;
+  }
+  .image {
+    position: relative; z-index: 1;
+    transition: background-color 800ms ease, transform 250ms ease, font-size 250ms ease;
+  }
+  .image.emoji {
+    font-size: clamp(140px, 32vw, 360px);
+    line-height: 1;
+    filter: drop-shadow(0 8px 30px var(--mr-color-soft));
+    animation: gentle-float 4s ease-in-out infinite;
+  }
+  .image.mask {
+    width: clamp(180px, 40vw, 480px);
+    height: clamp(180px, 40vw, 480px);
+    background-color: var(--mr-color, #4ade80);
+    -webkit-mask-image: var(--mr-img); mask-image: var(--mr-img);
+    -webkit-mask-size: contain; mask-size: contain;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+  }
+  .image.filter, .image.plain {
+    width: clamp(180px, 40vw, 480px);
+    height: clamp(180px, 40vw, 480px);
+    background-image: var(--mr-img);
+    background-size: contain; background-repeat: no-repeat; background-position: center;
+  }
+  .image.filter { filter: hue-rotate(var(--mr-hue, 0deg)) saturate(1.2) drop-shadow(0 8px 30px var(--mr-color-soft)); }
+
+  @keyframes gentle-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .bar-wrap {
+    width: 100%;
+    max-width: 900px;
+    display: flex; flex-direction: column; gap: 1.4vh;
+  }
+  .bar {
+    height: clamp(28px, 5vh, 56px);
+    background: rgba(255,255,255,0.10);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+  }
+  .bar-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--mr-color), color-mix(in srgb, var(--mr-color) 60%, white));
+    border-radius: 999px;
+    transition: width 900ms linear, background 800ms ease;
+    box-shadow: 0 0 20px var(--mr-color);
+  }
+  .meta {
+    display: flex; justify-content: space-between;
+    font-size: clamp(16px, 2.4vw, 28px);
+    opacity: 0.88;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .next-line {
+    margin-top: 3vh;
+    font-size: clamp(14px, 2vw, 22px);
+    opacity: 0.55;
+    text-align: center;
+  }
+
+  /* Last 15 seconds: pulsing urgency */
+  #overlay.urgent .bar-fill {
+    animation: bar-pulse 0.6s ease-in-out infinite;
+  }
+  #overlay.urgent .image.emoji {
+    animation: emoji-pulse 0.6s ease-in-out infinite;
+  }
+  #overlay.urgent .image.mask,
+  #overlay.urgent .image.filter,
+  #overlay.urgent .image.plain {
+    animation: image-pulse 0.6s ease-in-out infinite;
+  }
+  #overlay.urgent .name {
+    animation: name-pulse 0.6s ease-in-out infinite;
+  }
+  @keyframes bar-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 20px var(--mr-color); }
+    50% { opacity: 0.55; box-shadow: 0 0 40px var(--mr-color); }
+  }
+  @keyframes emoji-pulse {
+    0%, 100% { transform: scale(1) translateY(0); filter: drop-shadow(0 8px 30px var(--mr-color-soft)); }
+    50% { transform: scale(1.08) translateY(-4px); filter: drop-shadow(0 12px 50px var(--mr-color)); }
+  }
+  @keyframes image-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  @keyframes name-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+</style>
+<div id="overlay">
+  <div class="name"></div>
+  <div class="image-wrap"><div class="image"></div></div>
+  <div class="bar-wrap">
+    <div class="bar"><div class="bar-fill" id="fill"></div></div>
+    <div class="meta">
+      <span id="left"></span>
+      <span id="pct"></span>
+    </div>
+  </div>
+  <div class="next-line" id="next"></div>
+</div>
+`;
+
 customElements.define("morning-routine-card", MorningRoutineCard);
 customElements.define("morning-routine-card-editor", MorningRoutineCardEditor);
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "morning-routine-card",
-  name: "Morning Routine Card",
-  description: "Full-screen morning routine takeover with countdown and color-synced image.",
-  preview: false,
-  documentationURL: "https://github.com/racoon80/morning-routine",
-});
+if (!window.customCards.find((c) => c.type === "morning-routine-card")) {
+  window.customCards.push({
+    type: "morning-routine-card",
+    name: "Morning Routine Card",
+    description: "Visual morning routine — full-screen overlay during steps, day schedule when idle.",
+    preview: false,
+    documentationURL: "https://github.com/Racoon80/morning-routine",
+  });
+}
 
 console.info(
   `%c MORNING-ROUTINE-CARD %c v${VERSION} `,
-  "color:white;background:#4ade80;font-weight:700",
-  "color:#4ade80;background:#0e0f12"
+  "color:white;background:#4ade80;font-weight:700;padding:2px 4px",
+  "color:#4ade80;background:#0e0f12;padding:2px 4px"
 );

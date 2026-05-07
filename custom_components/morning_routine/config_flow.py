@@ -40,31 +40,62 @@ BUNDLED = "/morning_routine_frontend/images"
 BUNDLED_FS = os.path.join(os.path.dirname(__file__), "frontend", "images")
 LOCAL_MORNING_DIR = "www/morning"
 
-# Emoji prefix per known stem — falls back to plain name otherwise.
-_EMOJI = {
-    "coffee": "☕",
-    "breakfast": "🥣",
-    "teeth": "🪥",
-    "clothes": "👕",
-    "shoes": "👟",
-    "backpack": "🎒",
-    "shower": "🚿",
-    "done": "✅",
-}
-
-
-def _label_for(stem: str) -> str:
-    pretty = stem.replace("_", " ").replace("-", " ").title()
-    emoji = _EMOJI.get(stem.lower())
-    return f"{emoji} {pretty}" if emoji else pretty
+# Curated emoji set — value is the emoji itself, used directly as `image`.
+# The card detects emoji vs URL by the absence of a "/" in the value.
+EMOJI_OPTIONS: list[dict[str, str]] = [
+    {"value": "☕", "label": "☕  Kaffee / Coffee"},
+    {"value": "🍵", "label": "🍵  Tee / Tea"},
+    {"value": "🥛", "label": "🥛  Milch / Milk"},
+    {"value": "🥣", "label": "🥣  Müsli / Cereal"},
+    {"value": "🥐", "label": "🥐  Croissant"},
+    {"value": "🍞", "label": "🍞  Brot / Bread"},
+    {"value": "🥚", "label": "🥚  Ei / Egg"},
+    {"value": "🥞", "label": "🥞  Pfannkuchen / Pancakes"},
+    {"value": "🍎", "label": "🍎  Apfel / Apple"},
+    {"value": "🍌", "label": "🍌  Banane / Banana"},
+    {"value": "🪥", "label": "🪥  Zähne putzen / Brush teeth"},
+    {"value": "🧼", "label": "🧼  Hände waschen / Wash hands"},
+    {"value": "🚿", "label": "🚿  Dusche / Shower"},
+    {"value": "🛁", "label": "🛁  Bad / Bath"},
+    {"value": "💧", "label": "💧  Trinken / Drink"},
+    {"value": "👕", "label": "👕  T-Shirt"},
+    {"value": "👖", "label": "👖  Hose / Pants"},
+    {"value": "🧥", "label": "🧥  Jacke / Jacket"},
+    {"value": "🧦", "label": "🧦  Socken / Socks"},
+    {"value": "👟", "label": "👟  Schuhe / Shoes"},
+    {"value": "🥾", "label": "🥾  Stiefel / Boots"},
+    {"value": "🎒", "label": "🎒  Rucksack / Backpack"},
+    {"value": "📚", "label": "📚  Bücher / Books"},
+    {"value": "✏️", "label": "✏️  Hausaufgaben / Homework"},
+    {"value": "🎨", "label": "🎨  Malen / Painting"},
+    {"value": "🎮", "label": "🎮  Spielen / Playing"},
+    {"value": "🧸", "label": "🧸  Spielzeug / Toys"},
+    {"value": "📺", "label": "📺  Fernsehen / TV"},
+    {"value": "🛏️", "label": "🛏️  Bett / Bed"},
+    {"value": "😴", "label": "😴  Schlafen / Sleep"},
+    {"value": "🚗", "label": "🚗  Auto / Car"},
+    {"value": "🚌", "label": "🚌  Bus"},
+    {"value": "🚲", "label": "🚲  Fahrrad / Bike"},
+    {"value": "🏫", "label": "🏫  Schule / School"},
+    {"value": "🌞", "label": "🌞  Sonne / Sun"},
+    {"value": "🌙", "label": "🌙  Mond / Moon"},
+    {"value": "⭐", "label": "⭐  Stern / Star"},
+    {"value": "✅", "label": "✅  Fertig / Done"},
+    {"value": "🎉", "label": "🎉  Party / Celebrate"},
+    {"value": "💪", "label": "💪  Sport / Workout"},
+]
 
 
 def _image_options(hass: HomeAssistant | None) -> list[dict[str, str]]:
-    """Build dropdown options from bundled SVGs and /config/www/morning/."""
-    options: list[dict[str, str]] = []
-    seen: set[str] = set()
+    """Build the picture dropdown.
 
-    # Bundled images shipped with the integration
+    Order: emojis first (most users want these), then bundled SVG silhouettes,
+    then any custom files placed in /config/www/morning/.
+    """
+    options: list[dict[str, str]] = list(EMOJI_OPTIONS)
+    seen: set[str] = {o["value"] for o in options}
+
+    # Bundled SVG silhouettes (kept for users who prefer monochrome)
     if os.path.isdir(BUNDLED_FS):
         for fname in sorted(os.listdir(BUNDLED_FS)):
             if not fname.lower().endswith((".svg", ".png", ".jpg", ".jpeg", ".webp")):
@@ -74,7 +105,7 @@ def _image_options(hass: HomeAssistant | None) -> list[dict[str, str]]:
             if value in seen:
                 continue
             seen.add(value)
-            options.append({"value": value, "label": _label_for(stem)})
+            options.append({"value": value, "label": f"🖼️  {stem.title()} (SVG)"})
 
     # User images in /config/www/morning/
     if hass is not None:
@@ -88,7 +119,7 @@ def _image_options(hass: HomeAssistant | None) -> list[dict[str, str]]:
                 if value in seen:
                     continue
                 seen.add(value)
-                options.append({"value": value, "label": f"📁 {_label_for(stem)}"})
+                options.append({"value": value, "label": f"📁  {stem.title()}"})
 
     return options
 
@@ -98,7 +129,7 @@ DEFAULT_STEPS = [
         CONF_NAME_LB: "Kaffi",
         CONF_START: "07:30",
         CONF_DURATION: 15,
-        CONF_IMAGE: f"{BUNDLED}/coffee.svg",
+        CONF_IMAGE: "☕",
         CONF_DAYS: DAYS_ALL,
     },
     {
@@ -106,7 +137,7 @@ DEFAULT_STEPS = [
         CONF_NAME_LB: "Undoen",
         CONF_START: "07:45",
         CONF_DURATION: 10,
-        CONF_IMAGE: f"{BUNDLED}/clothes.svg",
+        CONF_IMAGE: "👕",
         CONF_DAYS: DAYS_ALL,
     },
     {
@@ -114,8 +145,16 @@ DEFAULT_STEPS = [
         CONF_NAME_LB: "Zänn pëtzen",
         CONF_START: "07:55",
         CONF_DURATION: 5,
-        CONF_IMAGE: f"{BUNDLED}/teeth.svg",
+        CONF_IMAGE: "🪥",
         CONF_DAYS: DAYS_ALL,
+    },
+    {
+        CONF_NAME: "Schultasche",
+        CONF_NAME_LB: "Schoulrucksak",
+        CONF_START: "08:00",
+        CONF_DURATION: 5,
+        CONF_IMAGE: "🎒",
+        CONF_DAYS: ["mon", "tue", "wed", "thu", "fri"],
     },
 ]
 
@@ -325,7 +364,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                     )
                 ),
                 vol.Required(
-                    CONF_IMAGE, default=d.get(CONF_IMAGE, f"{BUNDLED}/coffee.svg")
+                    CONF_IMAGE, default=d.get(CONF_IMAGE, "☕")
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=_image_options(self.hass),
