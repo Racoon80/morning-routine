@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.6.0";
+const VERSION = "0.6.1";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -33,6 +33,16 @@ class MorningRoutineCard extends HTMLElement {
     this._config = null;
     this._lastStepName = null;
     this._renderedOnce = false;
+    // Client-side smooth animation state
+    this._anim = null;          // rAF handle
+    this._stepAnchor = null;    // { stepKey, perfNow, serverTimeLeft, duration }
+  }
+
+  disconnectedCallback() {
+    if (this._anim) {
+      cancelAnimationFrame(this._anim);
+      this._anim = null;
+    }
   }
 
   static getConfigElement() {
@@ -122,7 +132,9 @@ class MorningRoutineCard extends HTMLElement {
     if (active) {
       this._renderHostIdle(data, language, /*minimized*/ true);
       this._renderOverlay(data, language);
+      this._startAnimLoop(data, language);
     } else {
+      this._stopAnimLoop();
       this._removeOverlay();
       this._renderHostIdle(data, language, false);
     }
@@ -131,6 +143,71 @@ class MorningRoutineCard extends HTMLElement {
       this._lastStepName = active;
       if (active) this._flashIn();
     }
+  }
+
+  // ── client-side smooth animation ──────────────────────────────────────────
+  _startAnimLoop(data, language) {
+    const stepKey = `${data.name}|${data.image}`;
+    const progress = data.progress || 0;
+    const tl = data.time_left || 0;
+    // Reconstruct total step duration: total = time_left / (1 - progress).
+    // Falls back to time_left when progress is essentially complete.
+    const totalSec = progress >= 0.999 ? Math.max(1, tl) : tl / Math.max(0.001, 1 - progress);
+
+    // Resync anchor when step changes OR when server drifted by >2s.
+    const now = performance.now();
+    const anchor = this._stepAnchor;
+    const computedClientTl = anchor && anchor.stepKey === stepKey
+      ? Math.max(0, anchor.serverTimeLeft - (now - anchor.perfNow) / 1000)
+      : null;
+    const drift = computedClientTl == null ? Infinity : Math.abs(computedClientTl - tl);
+
+    if (!anchor || anchor.stepKey !== stepKey || drift > 2) {
+      this._stepAnchor = {
+        stepKey,
+        perfNow: now,
+        serverTimeLeft: tl,
+        duration: totalSec,
+      };
+    }
+
+    if (this._anim) cancelAnimationFrame(this._anim);
+    const tick = () => {
+      const a = this._stepAnchor;
+      if (!a) return;
+      const elapsed = (performance.now() - a.perfNow) / 1000;
+      const remaining = Math.max(0, a.serverTimeLeft - elapsed);
+      const prog = a.duration > 0 ? Math.max(0, Math.min(1, 1 - remaining / a.duration)) : 1;
+      this._paintProgress(prog, remaining, language);
+      this._anim = requestAnimationFrame(tick);
+    };
+    this._anim = requestAnimationFrame(tick);
+  }
+
+  _stopAnimLoop() {
+    if (this._anim) {
+      cancelAnimationFrame(this._anim);
+      this._anim = null;
+    }
+    this._stepAnchor = null;
+  }
+
+  _paintProgress(progress, remainingSec, language) {
+    const overlay = this.shadowRoot.querySelector("#overlay");
+    if (!overlay) return;
+    const hue = Math.round(120 * (1 - progress));
+    const color = `hsl(${hue}, 80%, 55%)`;
+    const colorSoft = `hsla(${hue}, 80%, 55%, 0.32)`;
+    overlay.style.setProperty("--mr-color", color);
+    overlay.style.setProperty("--mr-color-soft", colorSoft);
+    overlay.style.setProperty("--mr-hue", `${hue - 120}deg`);
+    const fill = overlay.querySelector("#fill");
+    const pct = overlay.querySelector("#pct");
+    const left = overlay.querySelector("#left");
+    if (fill) fill.style.width = `${progress * 100}%`;
+    if (pct) pct.textContent = `${Math.round(progress * 100)}%`;
+    if (left) left.textContent = formatTime(Math.ceil(remainingSec), language);
+    overlay.classList.toggle("urgent", remainingSec > 0 && remainingSec <= 15);
   }
 
   // ── idle ha-card body ─────────────────────────────────────────────────────
@@ -719,12 +796,14 @@ const OVERLAY_HTML = `
 <style>
   #overlay {
     position: fixed; inset: 0; z-index: 9999;
-    background: radial-gradient(circle at 50% 30%, var(--mr-color-soft), #0a0b0f 70%);
+    background-color: #0a0b0f;
+    background-image: radial-gradient(circle at 50% 35%, var(--mr-color-soft), transparent 65%);
     color: #fff;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-start;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     opacity: 0; transition: opacity 250ms ease;
-    padding: 4vh 4vw;
+    padding: 5vh 4vw 7vh 4vw;
     box-sizing: border-box;
   }
   #overlay.shown { opacity: 1; }
@@ -732,21 +811,22 @@ const OVERLAY_HTML = `
     font-size: clamp(28px, 6vw, 96px);
     font-weight: 800;
     letter-spacing: -0.02em;
-    margin-bottom: 4vh;
+    margin-top: 2vh;
+    margin-bottom: 2vh;
     text-align: center;
     color: var(--mr-color, #4ade80);
     transition: color 800ms ease;
     text-shadow: 0 4px 30px var(--mr-color-soft);
   }
   .image-wrap {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     width: 100%;
-    max-height: 55vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 4vh;
+    margin-bottom: 2vh;
     position: relative;
+    min-height: 0;
   }
   .image-wrap::before {
     content: "";
@@ -792,8 +872,10 @@ const OVERLAY_HTML = `
 
   .bar-wrap {
     width: 100%;
-    max-width: 900px;
+    max-width: 1100px;
     display: flex; flex-direction: column; gap: 1.4vh;
+    margin-top: auto;  /* push to bottom */
+    flex-shrink: 0;
   }
   .bar {
     height: clamp(28px, 5vh, 56px);
@@ -807,7 +889,7 @@ const OVERLAY_HTML = `
     height: 100%; width: 0%;
     background: linear-gradient(90deg, var(--mr-color), color-mix(in srgb, var(--mr-color) 60%, white));
     border-radius: 999px;
-    transition: width 900ms linear, background 800ms ease;
+    /* No CSS transition — JS rAF loop drives the width directly at 60fps. */
     box-shadow: 0 0 20px var(--mr-color);
   }
   .meta {

@@ -41,7 +41,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 TICK_ACTIVE = timedelta(seconds=1)
-TICK_IDLE = timedelta(seconds=15)
+TICK_IDLE = timedelta(seconds=30)
 
 
 @dataclass
@@ -103,6 +103,11 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
     # ── lifecycle ────────────────────────────────────────────────────────────
     async def async_start(self) -> None:
         await self.async_config_entry_first_refresh()
+        # Tick every 1s unconditionally — this is a small dataclass compute,
+        # no I/O, and the user expects a per-second countdown. Earlier we
+        # tried debounced refresh on top of the coordinator's own update_interval
+        # but the debouncer collapsed bursts and the sensor only re-wrote
+        # state every several seconds. A direct interval is reliable.
         self._unsub_tick = async_track_time_interval(
             self.hass, self._tick, TICK_ACTIVE
         )
@@ -123,7 +128,17 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
     # ── tick ─────────────────────────────────────────────────────────────────
     @callback
     def _tick(self, _now: datetime) -> None:
-        self.hass.async_create_task(self.async_request_refresh())
+        # Bypass the request-refresh debouncer — it collapses our 1s ticks.
+        # We compute fresh data, push it, and force-write the sensor state
+        # so attribute-only changes (progress, time_left) propagate every tick.
+        self.hass.async_create_task(self._async_force_refresh())
+
+    async def _async_force_refresh(self) -> None:
+        try:
+            new_data = await self._async_update_data()
+        except Exception:
+            return
+        self.async_set_updated_data(new_data)
 
     async def _async_update_data(self) -> dict[str, Any]:
         now = dt_util.now() - self._snooze_offset
