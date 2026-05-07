@@ -14,23 +14,65 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.7.0";
+const VERSION = "0.8.0";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
-// Convert an emoji to a Twemoji SVG URL on jsDelivr.
-// Strips variation selector (FE0F) and joins remaining codepoints with -.
-const TWEMOJI_BASE = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg";
-function emojiToTwemojiUrl(emoji) {
-  if (!emoji || typeof emoji !== "string") return null;
+function emojiCodepoints(emoji) {
+  if (!emoji || typeof emoji !== "string") return [];
   const cps = [];
   for (const ch of emoji) {
     const cp = ch.codePointAt(0);
     if (cp === 0xfe0f) continue;          // variation selector
     cps.push(cp.toString(16));
   }
+  return cps;
+}
+
+// Twemoji — Twitter's SVG emoji set on jsDelivr.
+const TWEMOJI_BASE = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg";
+function emojiToTwemojiUrl(emoji) {
+  const cps = emojiCodepoints(emoji);
   if (!cps.length) return null;
   return `${TWEMOJI_BASE}/${cps.join("-")}.svg`;
+}
+
+// Microsoft Fluent Emoji 3D — real PNG renders that look like little 3D
+// figurines. Map is loaded async on first use from the integration's static
+// frontend path (~70KB). Until it arrives, render falls back to Twemoji.
+const FLUENT_BASE = "https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@latest/assets";
+const FLUENT_MAP_URL = "/morning_routine_frontend/fluent_map.json";
+let FLUENT_MAP = null;
+let FLUENT_MAP_LOAD = null;
+function ensureFluentMap() {
+  if (FLUENT_MAP || FLUENT_MAP_LOAD) return FLUENT_MAP_LOAD;
+  FLUENT_MAP_LOAD = fetch(FLUENT_MAP_URL)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((m) => {
+      FLUENT_MAP = m || {};
+      return FLUENT_MAP;
+    })
+    .catch(() => {
+      FLUENT_MAP = {};
+      return FLUENT_MAP;
+    });
+  return FLUENT_MAP_LOAD;
+}
+function emojiToFluentUrl(emoji) {
+  if (!FLUENT_MAP) return null;
+  const cps = emojiCodepoints(emoji);
+  if (!cps.length) return null;
+  // Try full sequence first (covers ZWJ joiners), then shorter prefixes,
+  // then base codepoint. Skin tones fall back to base via this chain.
+  for (let i = cps.length; i > 0; i--) {
+    const key = cps.slice(0, i).join("-");
+    const entry = FLUENT_MAP[key];
+    if (entry) {
+      const folderEnc = entry.f.split("/").map(encodeURIComponent).join("/");
+      return `${FLUENT_BASE}${folderEnc}/3D/${entry.p}`;
+    }
+  }
+  return null;
 }
 
 const fireEvent = (node, type, detail = {}) => {
@@ -65,7 +107,7 @@ class MorningRoutineCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { tint_mode: "mask", emoji_style: "twemoji" };
+    return { tint_mode: "mask", emoji_style: "fluent" };
   }
 
   setConfig(config) {
@@ -73,9 +115,13 @@ class MorningRoutineCard extends HTMLElement {
       tint_mode: "mask",
       language: null,
       active_step_entity: null,
-      emoji_style: "twemoji",   // twemoji | native
+      emoji_style: "fluent",   // fluent | twemoji | native
       ...config,
     };
+    if (this._config.emoji_style === "fluent") {
+      // Fire-and-forget; once it lands, the next render uses the map.
+      ensureFluentMap().then(() => this._render());
+    }
     this._renderPlaceholder();
     this._render();
   }
@@ -475,13 +521,12 @@ class MorningRoutineCard extends HTMLElement {
 
     // Render image / emoji
     const img = overlay.querySelector(".image");
-    img.classList.remove("emoji", "twemoji", "filter", "plain", "mask");
+    img.classList.remove("emoji", "twemoji", "fluent", "filter", "plain", "mask");
     if (isEmoji(data.image)) {
-      const useTwe = this._config.emoji_style !== "native";
-      const tweUrl = useTwe ? emojiToTwemojiUrl(data.image) : null;
-      if (tweUrl) {
-        img.classList.add("twemoji");
-        img.style.setProperty("--mr-img", `url("${tweUrl}")`);
+      const url = this._resolveEmojiUrl(data.image);
+      if (url) {
+        img.classList.add(url.cls);
+        img.style.setProperty("--mr-img", `url("${url.href}")`);
         img.textContent = "";
       } else {
         img.classList.add("emoji");
@@ -518,10 +563,9 @@ class MorningRoutineCard extends HTMLElement {
   _iconHTML(value, size) {
     const cls = size === "small" ? "icon-small" : (size === "row" ? "icon-row" : "icon");
     if (isEmoji(value)) {
-      const useTwe = this._config?.emoji_style !== "native";
-      const tweUrl = useTwe ? emojiToTwemojiUrl(value) : null;
-      if (tweUrl) {
-        return `<span class="${cls} bg-img" style="--mr-row-img:url('${tweUrl}')"></span>`;
+      const url = this._resolveEmojiUrl(value);
+      if (url) {
+        return `<span class="${cls} bg-img" style="--mr-row-img:url('${url.href}')"></span>`;
       }
       return `<span class="${cls} emoji">${value}</span>`;
     }
@@ -529,6 +573,20 @@ class MorningRoutineCard extends HTMLElement {
       return `<span class="${cls} bg-img" style="--mr-row-img:url('${value}')"></span>`;
     }
     return `<span class="${cls}">·</span>`;
+  }
+
+  /** Resolve an emoji to a URL according to emoji_style preference.
+   *  Returns { href, cls } or null for native rendering. */
+  _resolveEmojiUrl(emoji) {
+    const style = this._config?.emoji_style || "fluent";
+    if (style === "native") return null;
+    if (style === "fluent") {
+      const u = emojiToFluentUrl(emoji);
+      if (u) return { href: u, cls: "fluent" };
+      // Map not yet loaded or codepoint missing — fall through to twemoji.
+    }
+    const t = emojiToTwemojiUrl(emoji);
+    return t ? { href: t, cls: "twemoji" } : null;
   }
 }
 
@@ -554,7 +612,8 @@ class MorningRoutineCardEditor extends HTMLElement {
       <div class="row">
         <label>Emoji style</label>
         <select id="emoji-style">
-          <option value="twemoji"${this._config.emoji_style !== "native" ? " selected" : ""}>Twemoji (CDN, prettier)</option>
+          <option value="fluent"${this._config.emoji_style === "fluent" || !this._config.emoji_style ? " selected" : ""}>Microsoft Fluent 3D (PNG, prettiest)</option>
+          <option value="twemoji"${this._config.emoji_style === "twemoji" ? " selected" : ""}>Twemoji (Twitter SVG, flat)</option>
           <option value="native"${this._config.emoji_style === "native" ? " selected" : ""}>Native (system font, offline)</option>
         </select>
       </div>
@@ -905,6 +964,17 @@ const OVERLAY_HTML = `
     background-repeat: no-repeat;
     background-position: center;
     filter: drop-shadow(0 8px 30px var(--mr-color-soft));
+    animation: gentle-float 4s ease-in-out infinite;
+  }
+  .image.fluent {
+    width: clamp(240px, 50vw, 600px);
+    height: clamp(240px, 50vw, 600px);
+    background-image: var(--mr-img);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    /* The 3D PNGs already include lighting — keep filter subtle. */
+    filter: drop-shadow(0 12px 40px var(--mr-color-soft));
     animation: gentle-float 4s ease-in-out infinite;
   }
   .image.mask {
