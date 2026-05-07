@@ -1,0 +1,79 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Morgenroutine",
+        "description": "Richte die Morgenroutine ein. Schritte kannst du später unter \"Konfigurieren\" bearbeiten.",
+        "data": {
+          "language": "Sprache",
+          "tts_enabled": "Sprachausgabe aktivieren",
+          "chime_enabled": "Klingelton aktivieren"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Morgenroutine ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Morgenroutine",
+        "menu_options": {
+          "add_step": "Schritt hinzufügen",
+          "edit_step": "Schritt bearbeiten",
+          "remove_step": "Schritt entfernen",
+          "settings": "Ton, Stimme & Sprache"
+        }
+      },
+      "add_step": {
+        "title": "Schritt hinzufügen",
+        "data": {
+          "name": "Name",
+          "name_lb": "Numm (Lëtzebuergesch)",
+          "start": "Startzeit",
+          "duration": "Dauer",
+          "image": "Bild-URL (z.B. /local/morning/coffee.png)",
+          "days": "Aktive Tage"
+        }
+      },
+      "edit_step": {"title": "Welchen Schritt bearbeiten?", "data": {"step_id": "Schritt"}},
+      "edit_form": {
+        "title": "Schritt bearbeiten",
+        "data": {
+          "name": "Name",
+          "name_lb": "Numm (Lëtzebuergesch)",
+          "start": "Startzeit",
+          "duration": "Dauer",
+          "image": "Bild-URL",
+          "days": "Aktive Tage"
+        }
+      },
+      "remove_step": {"title": "Welchen Schritt entfernen?", "data": {"step_id": "Schritt"}},
+      "settings": {
+        "title": "Ton, Stimme & Sprache",
+        "data": {
+          "language": "Sprache",
+          "tts_enabled": "Schrittnamen vorlesen",
+          "tts_target": "TTS-Ziel (Media Player)",
+          "tts_service": "TTS-Dienst (z.B. tts.cloud_say, tts.luxembourgish)",
+          "chime_enabled": "Klingel beim Schritt-Start",
+          "chime_entity": "Klingel-Media-Player",
+          "chime_url": "Klingel-Audio-URL",
+          "prewarn_seconds": "Voransage (Sekunden vorher, 0 = aus)"
+        }
+      }
+    },
+    "abort": {
+      "no_steps": "Noch keine Schritte konfiguriert - bitte zuerst einen hinzufuegen.",
+      "not_found": "Schritt existiert nicht mehr."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "active_step": {"name": "Aktiver Schritt"},
+      "progress": {"name": "Fortschritt"},
+      "time_left": {"name": "Verbleibende Zeit"}
+    }
+  }
+}

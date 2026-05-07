@@ -1,0 +1,79 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Morning Routine",
+        "description": "Set up your morning routine. Steps can be edited later in Configure.",
+        "data": {
+          "language": "Language",
+          "tts_enabled": "Enable spoken announcements",
+          "chime_enabled": "Enable chime sound"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Morning Routine is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Morning Routine",
+        "menu_options": {
+          "add_step": "Add a step",
+          "edit_step": "Edit a step",
+          "remove_step": "Remove a step",
+          "settings": "Sound, voice & language"
+        }
+      },
+      "add_step": {
+        "title": "Add step",
+        "data": {
+          "name": "Name",
+          "name_lb": "Name (Lëtzebuergesch)",
+          "start": "Start time",
+          "duration": "Duration",
+          "image": "Image URL",
+          "days": "Active days"
+        }
+      },
+      "edit_step": {"title": "Edit which step?", "data": {"step_id": "Step"}},
+      "edit_form": {
+        "title": "Edit step",
+        "data": {
+          "name": "Name",
+          "name_lb": "Name (Lëtzebuergesch)",
+          "start": "Start time",
+          "duration": "Duration",
+          "image": "Image URL",
+          "days": "Active days"
+        }
+      },
+      "remove_step": {"title": "Remove which step?", "data": {"step_id": "Step"}},
+      "settings": {
+        "title": "Sound, voice & language",
+        "data": {
+          "language": "Language",
+          "tts_enabled": "Speak step name",
+          "tts_target": "TTS target",
+          "tts_service": "TTS service",
+          "chime_enabled": "Play chime on step start",
+          "chime_entity": "Chime media player",
+          "chime_url": "Chime audio URL",
+          "prewarn_seconds": "Pre-warn announcement (seconds before step, 0 = off)"
+        }
+      }
+    },
+    "abort": {
+      "no_steps": "No steps configured yet — add one first.",
+      "not_found": "Step no longer exists."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "active_step": {"name": "Active step"},
+      "progress": {"name": "Progress"},
+      "time_left": {"name": "Time left"}
+    }
+  }
+}

@@ -1,0 +1,331 @@
+/**
+ * Morning Routine Card
+ * Fullscreen overlay that takes over the dashboard when a step is active.
+ * Image and progress bar share a synchronized green→red color.
+ *
+ * Usage in Lovelace:
+ *   type: custom:morning-routine-card
+ *   active_step_entity: sensor.morning_routine_active_step
+ *   language: de   # de | lb | en   (optional, defaults to HA user lang)
+ *   tint_mode: mask  # mask | filter | none
+ */
+
+const VERSION = "0.1.0";
+
+class MorningRoutineCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._hass = null;
+    this._config = null;
+    this._lastStepName = null;
+  }
+
+  static getConfigElement() {
+    return document.createElement("morning-routine-card-editor");
+  }
+
+  static getStubConfig() {
+    return {
+      active_step_entity: "sensor.morning_routine_active_step",
+      tint_mode: "mask",
+    };
+  }
+
+  setConfig(config) {
+    if (!config || !config.active_step_entity) {
+      throw new Error("active_step_entity is required");
+    }
+    this._config = {
+      tint_mode: "mask",
+      language: null,
+      ...config,
+    };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  getCardSize() {
+    return 1;
+  }
+
+  // ── core ──────────────────────────────────────────────────────────────────
+  _render() {
+    if (!this._hass || !this._config) return;
+    const stateObj = this._hass.states[this._config.active_step_entity];
+
+    const active = stateObj && stateObj.state && stateObj.state !== "unknown" && stateObj.state !== "unavailable" && stateObj.state !== "None"
+      ? stateObj.state
+      : null;
+    const attrs = (stateObj && stateObj.attributes) || {};
+    const progress = Math.max(0, Math.min(1, attrs.progress || 0));
+    const timeLeft = attrs.time_left || 0;
+    const image = attrs.image || "";
+    const language = this._config.language || (this._hass.language || "en").slice(0, 2);
+    const name = (language === "lb" ? attrs.name_lb : attrs.name) || active || "";
+    const next = attrs.next_step || null;
+
+    if (!active) {
+      this._mountOverlay(false);
+      this._lastStepName = null;
+      return;
+    }
+
+    this._mountOverlay(true);
+    this._paint({ name, image, progress, timeLeft, next, language });
+
+    if (active !== this._lastStepName) {
+      this._lastStepName = active;
+      this._flashIn();
+    }
+  }
+
+  _mountOverlay(visible) {
+    let overlay = this.shadowRoot.getElementById("overlay");
+    if (!visible) {
+      if (overlay) overlay.remove();
+      return;
+    }
+    if (overlay) return;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display: block; }
+        #overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          background: var(--mr-bg, #0e0f12);
+          color: #fff;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          opacity: 0;
+          transition: opacity 250ms ease;
+          padding: 4vh 4vw;
+          box-sizing: border-box;
+        }
+        #overlay.shown { opacity: 1; }
+        .name {
+          font-size: clamp(28px, 6vw, 96px);
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          margin-bottom: 4vh;
+          text-align: center;
+          color: var(--mr-color, #4ade80);
+          transition: color 600ms ease;
+        }
+        .image-wrap {
+          flex: 1;
+          width: 100%;
+          max-height: 60vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 4vh;
+        }
+        .image {
+          width: clamp(180px, 40vw, 480px);
+          height: clamp(180px, 40vw, 480px);
+          background-color: var(--mr-color, #4ade80);
+          -webkit-mask-image: var(--mr-img);
+                  mask-image: var(--mr-img);
+          -webkit-mask-size: contain;
+                  mask-size: contain;
+          -webkit-mask-repeat: no-repeat;
+                  mask-repeat: no-repeat;
+          -webkit-mask-position: center;
+                  mask-position: center;
+          transition: background-color 600ms ease;
+        }
+        .image.filter {
+          background: none;
+          background-image: var(--mr-img);
+          background-size: contain;
+          background-repeat: no-repeat;
+          background-position: center;
+          filter: hue-rotate(var(--mr-hue, 0deg)) saturate(1.2);
+          -webkit-mask: none;
+                  mask: none;
+        }
+        .image.plain {
+          background: none;
+          background-image: var(--mr-img);
+          background-size: contain;
+          background-repeat: no-repeat;
+          background-position: center;
+          -webkit-mask: none;
+                  mask: none;
+        }
+        .bar-wrap {
+          width: 100%;
+          max-width: 900px;
+          display: flex;
+          flex-direction: column;
+          gap: 1.2vh;
+        }
+        .bar {
+          height: clamp(28px, 5vh, 56px);
+          background: rgba(255,255,255,0.12);
+          border-radius: 999px;
+          overflow: hidden;
+          position: relative;
+        }
+        .bar-fill {
+          height: 100%;
+          width: 0%;
+          background: var(--mr-color, #4ade80);
+          border-radius: 999px;
+          transition: width 900ms linear, background-color 600ms ease;
+        }
+        .meta {
+          display: flex;
+          justify-content: space-between;
+          font-size: clamp(16px, 2.4vw, 28px);
+          opacity: 0.85;
+        }
+        .next {
+          margin-top: 3vh;
+          font-size: clamp(14px, 2vw, 22px);
+          opacity: 0.5;
+          text-align: center;
+        }
+      </style>
+      <div id="overlay">
+        <div class="name" id="name"></div>
+        <div class="image-wrap"><div class="image" id="img"></div></div>
+        <div class="bar-wrap">
+          <div class="bar"><div class="bar-fill" id="fill"></div></div>
+          <div class="meta">
+            <span id="left"></span>
+            <span id="pct"></span>
+          </div>
+        </div>
+        <div class="next" id="next"></div>
+      </div>
+    `;
+  }
+
+  _paint({ name, image, progress, timeLeft, next, language }) {
+    const overlay = this.shadowRoot.getElementById("overlay");
+    if (!overlay) return;
+
+    const hue = Math.round(120 * (1 - progress));
+    const color = `hsl(${hue}, 75%, 55%)`;
+    overlay.style.setProperty("--mr-color", color);
+    overlay.style.setProperty("--mr-hue", `${hue - 120}deg`);
+    if (image) overlay.style.setProperty("--mr-img", `url("${image}")`);
+
+    const img = this.shadowRoot.getElementById("img");
+    img.classList.remove("filter", "plain");
+    if (this._config.tint_mode === "filter") img.classList.add("filter");
+    else if (this._config.tint_mode === "none") img.classList.add("plain");
+
+    this.shadowRoot.getElementById("name").textContent = name;
+    this.shadowRoot.getElementById("fill").style.width = `${progress * 100}%`;
+    this.shadowRoot.getElementById("pct").textContent = `${Math.round(progress * 100)}%`;
+    this.shadowRoot.getElementById("left").textContent = this._formatTime(timeLeft, language);
+
+    const nextEl = this.shadowRoot.getElementById("next");
+    if (next) {
+      const nextLabel = (language === "lb" ? next.name_lb : next.name) || next.name;
+      const labelPrefix = { de: "Danach", lb: "Duerno", en: "Next" }[language] || "Next";
+      nextEl.textContent = `${labelPrefix}: ${nextLabel} · ${next.start}`;
+    } else {
+      nextEl.textContent = "";
+    }
+
+    requestAnimationFrame(() => overlay.classList.add("shown"));
+  }
+
+  _flashIn() {
+    const overlay = this.shadowRoot.getElementById("overlay");
+    if (!overlay) return;
+    overlay.animate(
+      [{ transform: "scale(0.96)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }],
+      { duration: 350, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }
+    );
+  }
+
+  _formatTime(seconds, language) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    const mLabel = { de: "min", lb: "min", en: "min" }[language] || "min";
+    const sLabel = { de: "s", lb: "s", en: "s" }[language] || "s";
+    if (m > 0) return `${m}${mLabel} ${s.toString().padStart(2, "0")}${sLabel}`;
+    return `${s}${sLabel}`;
+  }
+}
+
+class MorningRoutineCardEditor extends HTMLElement {
+  setConfig(config) { this._config = config; this._render(); }
+  set hass(hass) { this._hass = hass; }
+  _render() {
+    if (this.shadowRoot) return;
+    this.attachShadow({ mode: "open" });
+    this.shadowRoot.innerHTML = `
+      <style>
+        .row { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; }
+        label { font-size: 13px; opacity: 0.8; }
+        input, select { padding: 8px; border-radius: 6px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); }
+      </style>
+      <div class="row">
+        <label>Active step entity</label>
+        <input id="entity" value="${this._config.active_step_entity || "sensor.morning_routine_active_step"}" />
+      </div>
+      <div class="row">
+        <label>Tint mode (mask works best for monochrome icons)</label>
+        <select id="tint">
+          <option value="mask"${this._config.tint_mode === "mask" ? " selected" : ""}>mask</option>
+          <option value="filter"${this._config.tint_mode === "filter" ? " selected" : ""}>filter</option>
+          <option value="none"${this._config.tint_mode === "none" ? " selected" : ""}>none</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Language override (blank = follow HA)</label>
+        <input id="lang" value="${this._config.language || ""}" placeholder="de | lb | en" />
+      </div>
+    `;
+    const fire = () => {
+      const event = new CustomEvent("config-changed", {
+        detail: {
+          config: {
+            type: "custom:morning-routine-card",
+            active_step_entity: this.shadowRoot.getElementById("entity").value,
+            tint_mode: this.shadowRoot.getElementById("tint").value,
+            language: this.shadowRoot.getElementById("lang").value || null,
+          },
+        },
+        bubbles: true, composed: true,
+      });
+      this.dispatchEvent(event);
+    };
+    this.shadowRoot.getElementById("entity").addEventListener("change", fire);
+    this.shadowRoot.getElementById("tint").addEventListener("change", fire);
+    this.shadowRoot.getElementById("lang").addEventListener("change", fire);
+  }
+}
+
+customElements.define("morning-routine-card", MorningRoutineCard);
+customElements.define("morning-routine-card-editor", MorningRoutineCardEditor);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "morning-routine-card",
+  name: "Morning Routine Card",
+  description: "Full-screen morning routine takeover with countdown and color-synced image.",
+  preview: false,
+  documentationURL: "https://github.com/racoon80/morning-routine",
+});
+
+console.info(
+  `%c MORNING-ROUTINE-CARD %c v${VERSION} `,
+  "color:white;background:#4ade80;font-weight:700",
+  "color:#4ade80;background:#0e0f12"
+);

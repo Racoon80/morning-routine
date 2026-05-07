@@ -1,0 +1,13 @@
+{
+  "domain": "morning_routine",
+  "name": "Morning Routine",
+  "codeowners": ["@racoon80"],
+  "config_flow": true,
+  "dependencies": ["http", "frontend"],
+  "documentation": "https://github.com/racoon80/morning-routine",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/racoon80/morning-routine/issues",
+  "requirements": [],
+  "version": "0.2.0",
+  "integration_type": "service"
+}

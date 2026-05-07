@@ -1,0 +1,79 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Moiesroutine",
+        "description": "Riicht deng Moiesroutine an. Schrëtt kanns du méi spéit ënner \"Konfiguréieren\" upassen.",
+        "data": {
+          "language": "Sprooch",
+          "tts_enabled": "Sproochausgab aktivéieren",
+          "chime_enabled": "Klangelton aktivéieren"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Moiesroutine ass schonn ageriicht."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Moiesroutine",
+        "menu_options": {
+          "add_step": "Schrëtt derbäi",
+          "edit_step": "Schrëtt änneren",
+          "remove_step": "Schrëtt ewechhuelen",
+          "settings": "Toun, Stëmm & Sprooch"
+        }
+      },
+      "add_step": {
+        "title": "Schrëtt derbäisetzen",
+        "data": {
+          "name": "Numm (Däitsch)",
+          "name_lb": "Numm (Lëtzebuergesch)",
+          "start": "Startzäit",
+          "duration": "Dauer",
+          "image": "Bild-URL",
+          "days": "Aktiv Deeg"
+        }
+      },
+      "edit_step": {"title": "Wéi ee Schrëtt änneren?", "data": {"step_id": "Schrëtt"}},
+      "edit_form": {
+        "title": "Schrëtt änneren",
+        "data": {
+          "name": "Numm (Däitsch)",
+          "name_lb": "Numm (Lëtzebuergesch)",
+          "start": "Startzäit",
+          "duration": "Dauer",
+          "image": "Bild-URL",
+          "days": "Aktiv Deeg"
+        }
+      },
+      "remove_step": {"title": "Wéi ee Schrëtt ewechhuelen?", "data": {"step_id": "Schrëtt"}},
+      "settings": {
+        "title": "Toun, Stëmm & Sprooch",
+        "data": {
+          "language": "Sprooch",
+          "tts_enabled": "Schrëttnumm virliesen",
+          "tts_target": "TTS-Zil (Media Player)",
+          "tts_service": "TTS-Service",
+          "chime_enabled": "Klangel beim Schrëtt-Ufank",
+          "chime_entity": "Klangel-Media-Player",
+          "chime_url": "Klangel-Audio-URL",
+          "prewarn_seconds": "Viraussoen (Sekonnen virdrun, 0 = aus)"
+        }
+      }
+    },
+    "abort": {
+      "no_steps": "Nach keng Schrëtt konfiguréiert - fir d'éischt een derbäisetzen.",
+      "not_found": "Schrëtt existéiert net méi."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "active_step": {"name": "Aktive Schrëtt"},
+      "progress": {"name": "Fortschrëtt"},
+      "time_left": {"name": "Iwwreg Zäit"}
+    }
+  }
+}

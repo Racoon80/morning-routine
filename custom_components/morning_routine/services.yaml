@@ -1,0 +1,22 @@
+skip_step:
+  name: Skip current step
+  description: End the currently active step immediately and move on.
+
+start_now:
+  name: Start routine now
+  description: Begin the routine starting from the first step regardless of clock time.
+
+snooze:
+  name: Snooze
+  description: Postpone the routine by N minutes.
+  fields:
+    minutes:
+      name: Minutes
+      description: How many minutes to push the routine forward.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: min
