@@ -29,6 +29,7 @@ SERVICE_SKIP_STEP = "skip_step"
 SERVICE_START_NOW = "start_now"
 SERVICE_SNOOZE = "snooze"
 SERVICE_SET_STEPS = "set_steps"
+SERVICE_RESET_SNOOZE = "reset_snooze"
 
 ATTR_ACTIVE_STEP = "active_step"
 ATTR_PROGRESS = "progress"

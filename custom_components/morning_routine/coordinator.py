@@ -147,6 +147,21 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         new_idx = self._compute_active(now)
         prev_idx = self._active_idx
 
+        # Auto-reset snooze offset once the (shifted) routine has completed
+        # its last step of the day. Without this, calling start_now or snooze
+        # leaves the routine permanently shifted, and the next morning the
+        # real-time schedule is off by however much was offset.
+        if (
+            self._snooze_offset != timedelta(0)
+            and prev_idx is not None
+            and new_idx is None
+            and self._was_last_step_today(prev_idx, now)
+        ):
+            _LOGGER.info("Routine finished — clearing snooze offset (was %s)", self._snooze_offset)
+            self._snooze_offset = timedelta(0)
+            now = dt_util.now()
+            new_idx = self._compute_active(now)
+
         await self._maybe_prewarn(now)
 
         if new_idx != prev_idx:
@@ -368,6 +383,13 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         now = dt_util.now()
         target_sim = first.start_dt(now) + timedelta(seconds=1)
         self._snooze_offset = now - target_sim
+        await self.async_request_refresh()
+
+    async def async_reset_snooze(self) -> None:
+        """Clear any snooze offset so the routine returns to real clock time."""
+        if self._snooze_offset != timedelta(0):
+            _LOGGER.info("Manual reset of snooze offset (was %s)", self._snooze_offset)
+            self._snooze_offset = timedelta(0)
         await self.async_request_refresh()
 
     async def async_snooze(self, minutes: int = 5) -> None:

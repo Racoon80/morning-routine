@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     DOMAIN,
+    SERVICE_RESET_SNOOZE,
     SERVICE_SET_STEPS,
     SERVICE_SKIP_STEP,
     SERVICE_SNOOZE,
@@ -147,6 +148,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for c in hass.data[DOMAIN].values():
             await c.async_snooze(minutes)
 
+    async def _reset_snooze(call) -> None:
+        for c in hass.data[DOMAIN].values():
+            await c.async_reset_snooze()
+
     async def _set_steps(call) -> None:
         """Replace the entire step list. Used by the in-card editor."""
         from .const import CONF_STEPS, DAYS_ALL
@@ -201,6 +206,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.services.async_register(DOMAIN, SERVICE_START_NOW, _start_now)
         hass.services.async_register(DOMAIN, SERVICE_SNOOZE, _snooze)
         hass.services.async_register(DOMAIN, SERVICE_SET_STEPS, _set_steps)
+        hass.services.async_register(DOMAIN, SERVICE_RESET_SNOOZE, _reset_snooze)
 
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
@@ -217,6 +223,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator: MorningRoutineCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         await coordinator.async_stop()
     if not hass.data[DOMAIN]:
-        for svc in (SERVICE_SKIP_STEP, SERVICE_START_NOW, SERVICE_SNOOZE, SERVICE_SET_STEPS):
+        for svc in (SERVICE_SKIP_STEP, SERVICE_START_NOW, SERVICE_SNOOZE, SERVICE_SET_STEPS, SERVICE_RESET_SNOOZE):
             hass.services.async_remove(DOMAIN, svc)
     return unload_ok

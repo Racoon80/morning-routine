@@ -6,6 +6,14 @@ start_now:
   name: Start routine now
   description: Begin the routine starting from the first step regardless of clock time.
 
+reset_snooze:
+  name: Reset snooze / start_now offset
+  description: >
+    Clear any time shift introduced by `start_now` or `snooze` so the routine
+    returns to its real clock-time schedule. Auto-fires after the (shifted)
+    routine has played its last step of the day, but you can call it manually
+    to abort an active test.
+
 snooze:
   name: Snooze
   description: Postpone the routine by N minutes.
