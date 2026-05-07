@@ -26,27 +26,43 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-FRONTEND_URL = "/morning_routine_frontend/morning-routine-card.js"
+FRONTEND_BASE = "/morning_routine_frontend"
 FRONTEND_FS_PATH = os.path.join(os.path.dirname(__file__), "frontend")
+_FRONTEND_FLAG = f"{DOMAIN}_frontend_registered"
+
+
+def _read_version() -> str:
+    try:
+        import json
+        with open(os.path.join(os.path.dirname(__file__), "manifest.json")) as f:
+            return json.load(f).get("version", "0")
+    except Exception:
+        return "0"
+
+
+async def _register_frontend(hass: HomeAssistant) -> None:
+    """Register static path + inject card script. Idempotent per HA session."""
+    if hass.data.get(_FRONTEND_FLAG):
+        return
+    hass.data[_FRONTEND_FLAG] = True
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(FRONTEND_BASE, FRONTEND_FS_PATH, cache_headers=False)]
+    )
+    # Version query string busts browser cache on integration updates.
+    add_extra_js_url(hass, f"{FRONTEND_BASE}/morning-routine-card.js?v={_read_version()}")
+    _LOGGER.info("Morning Routine frontend registered (card v%s)", _read_version())
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Register the frontend card once, regardless of config entries."""
-    await hass.http.async_register_static_paths(
-        [
-            StaticPathConfig(
-                "/morning_routine_frontend",
-                FRONTEND_FS_PATH,
-                cache_headers=False,
-            )
-        ]
-    )
-    add_extra_js_url(hass, FRONTEND_URL)
+    await _register_frontend(hass)
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Morning Routine from a config entry."""
+    # Defensive: also register here in case async_setup didn't run for some reason.
+    await _register_frontend(hass)
+
     coordinator = MorningRoutineCoordinator(hass, entry)
     await coordinator.async_start()
 

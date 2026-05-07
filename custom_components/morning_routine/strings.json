@@ -33,7 +33,7 @@
           "name_lb": "Name (Lëtzebuergesch)",
           "start": "Start time",
           "duration": "Duration",
-          "image": "Image URL (e.g. /local/morning/coffee.png)",
+          "image": "Picture (pick bundled / from /config/www/morning/, or paste any URL)",
           "days": "Active days"
         }
       },
@@ -48,7 +48,7 @@
           "name_lb": "Name (Lëtzebuergesch)",
           "start": "Start time",
           "duration": "Duration",
-          "image": "Image URL",
+          "image": "Picture (pick bundled / from /config/www/morning/, or paste any URL)",
           "days": "Active days"
         }
       },

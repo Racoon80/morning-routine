@@ -33,7 +33,7 @@
           "name_lb": "Numm (Lëtzebuergesch)",
           "start": "Startzeit",
           "duration": "Dauer",
-          "image": "Bild-URL (z.B. /local/morning/coffee.png)",
+          "image": "Bild (auswählen aus mitgelieferten / /config/www/morning/, oder URL einfügen)",
           "days": "Aktive Tage"
         }
       },
@@ -45,7 +45,7 @@
           "name_lb": "Numm (Lëtzebuergesch)",
           "start": "Startzeit",
           "duration": "Dauer",
-          "image": "Bild-URL",
+          "image": "Bild (auswählen aus mitgelieferten / /config/www/morning/, oder URL einfügen)",
           "days": "Aktive Tage"
         }
       },

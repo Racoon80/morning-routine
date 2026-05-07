@@ -5,13 +5,14 @@ with sensible default steps; all real configuration happens in Options.
 """
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry, OptionsFlow
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
@@ -36,6 +37,60 @@ from .const import (
 )
 
 BUNDLED = "/morning_routine_frontend/images"
+BUNDLED_FS = os.path.join(os.path.dirname(__file__), "frontend", "images")
+LOCAL_MORNING_DIR = "www/morning"
+
+# Emoji prefix per known stem — falls back to plain name otherwise.
+_EMOJI = {
+    "coffee": "☕",
+    "breakfast": "🥣",
+    "teeth": "🪥",
+    "clothes": "👕",
+    "shoes": "👟",
+    "backpack": "🎒",
+    "shower": "🚿",
+    "done": "✅",
+}
+
+
+def _label_for(stem: str) -> str:
+    pretty = stem.replace("_", " ").replace("-", " ").title()
+    emoji = _EMOJI.get(stem.lower())
+    return f"{emoji} {pretty}" if emoji else pretty
+
+
+def _image_options(hass: HomeAssistant | None) -> list[dict[str, str]]:
+    """Build dropdown options from bundled SVGs and /config/www/morning/."""
+    options: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    # Bundled images shipped with the integration
+    if os.path.isdir(BUNDLED_FS):
+        for fname in sorted(os.listdir(BUNDLED_FS)):
+            if not fname.lower().endswith((".svg", ".png", ".jpg", ".jpeg", ".webp")):
+                continue
+            stem = os.path.splitext(fname)[0]
+            value = f"{BUNDLED}/{fname}"
+            if value in seen:
+                continue
+            seen.add(value)
+            options.append({"value": value, "label": _label_for(stem)})
+
+    # User images in /config/www/morning/
+    if hass is not None:
+        local_dir = hass.config.path(LOCAL_MORNING_DIR)
+        if os.path.isdir(local_dir):
+            for fname in sorted(os.listdir(local_dir)):
+                if not fname.lower().endswith((".svg", ".png", ".jpg", ".jpeg", ".webp")):
+                    continue
+                stem = os.path.splitext(fname)[0]
+                value = f"/local/morning/{fname}"
+                if value in seen:
+                    continue
+                seen.add(value)
+                options.append({"value": value, "label": f"📁 {_label_for(stem)}"})
+
+    return options
 
 DEFAULT_STEPS = [
     {
@@ -271,7 +326,14 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                 ),
                 vol.Required(
                     CONF_IMAGE, default=d.get(CONF_IMAGE, f"{BUNDLED}/coffee.svg")
-                ): str,
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=_image_options(self.hass),
+                        custom_value=True,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                        sort=False,
+                    )
+                ),
                 vol.Optional(
                     CONF_DAYS, default=d.get(CONF_DAYS, DAYS_ALL)
                 ): selector.SelectSelector(

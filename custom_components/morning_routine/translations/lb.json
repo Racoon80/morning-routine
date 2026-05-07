@@ -33,7 +33,7 @@
           "name_lb": "Numm (Lëtzebuergesch)",
           "start": "Startzäit",
           "duration": "Dauer",
-          "image": "Bild-URL",
+          "image": "Bild (auswielen aus matgeliwwerten / /config/www/morning/, oder URL erafügen)",
           "days": "Aktiv Deeg"
         }
       },
@@ -45,7 +45,7 @@
           "name_lb": "Numm (Lëtzebuergesch)",
           "start": "Startzäit",
           "duration": "Dauer",
-          "image": "Bild-URL",
+          "image": "Bild (auswielen aus matgeliwwerten / /config/www/morning/, oder URL erafügen)",
           "days": "Aktiv Deeg"
         }
       },
