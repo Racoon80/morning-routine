@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.8.1";
+const VERSION = "0.8.2";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -390,23 +390,28 @@ class MorningRoutineCard extends HTMLElement {
       c.addEventListener("click", () => c.classList.toggle("on"));
     });
 
-    // Emoji grid
+    // Emoji grid — render each option using the same fluent/twemoji style as
+    // the rest of the card. Falls back to the raw emoji char if no URL is
+    // available (e.g. emoji_style: native or codepoint missing in fluent map).
     const emojiGrid = $("emoji-grid");
-    emojiGrid.innerHTML = COMMON_EMOJIS.map((e) =>
-      `<button type="button" class="emoji-pick ${e === formState.image ? "on" : ""}" data-emoji="${e}">${e}</button>`
-    ).join("");
+    emojiGrid.innerHTML = COMMON_EMOJIS.map((e) => {
+      const url = this._resolveEmojiUrl(e);
+      const inner = url
+        ? `<span class="emoji-glyph" style="background-image:url('${url.href}')"></span>`
+        : `<span class="emoji-glyph emoji-native">${e}</span>`;
+      return `<button type="button" class="emoji-pick ${e === formState.image ? "on" : ""}" data-emoji="${e}">${inner}</button>`;
+    }).join("");
     emojiGrid.querySelectorAll(".emoji-pick").forEach((b) => {
       b.addEventListener("click", () => {
         emojiGrid.querySelectorAll(".emoji-pick.on").forEach((x) => x.classList.remove("on"));
         b.classList.add("on");
-        $("f-image").value = b.dataset.emoji;
-        $("emoji-preview").textContent = b.dataset.emoji;
+        const em = b.dataset.emoji;
+        $("f-image").value = em;
+        this._updateEmojiPreview(em);
       });
     });
-    $("f-image").addEventListener("input", () => {
-      const v = $("f-image").value;
-      $("emoji-preview").textContent = isEmoji(v) ? (v || "·") : "🖼️";
-    });
+    $("f-image").addEventListener("input", () => this._updateEmojiPreview($("f-image").value));
+    this._updateEmojiPreview(formState.image);
 
     // Translate field labels and buttons
     $("modal-title").textContent = editing ? L.editStep : L.addStep;
@@ -582,6 +587,27 @@ class MorningRoutineCard extends HTMLElement {
     return `<span class="${cls}">·</span>`;
   }
 
+  /** Update the emoji-preview swatch in the modal. Renders the same way
+   *  the actual card will: as a Fluent/Twemoji image when possible,
+   *  as native text otherwise (or 🖼️ for non-emoji image URLs). */
+  _updateEmojiPreview(value) {
+    const el = this.shadowRoot.getElementById("emoji-preview");
+    if (!el) return;
+    if (!isEmoji(value)) {
+      el.style.backgroundImage = "";
+      el.textContent = value ? "🖼️" : "·";
+      return;
+    }
+    const url = this._resolveEmojiUrl(value);
+    if (url) {
+      el.style.backgroundImage = `url("${url.href}")`;
+      el.textContent = "";
+    } else {
+      el.style.backgroundImage = "";
+      el.textContent = value;
+    }
+  }
+
   /** Resolve an emoji to a URL according to emoji_style preference.
    *  Returns { href, cls } or null for native rendering. */
   _resolveEmojiUrl(emoji) {
@@ -755,7 +781,8 @@ const COMMON_EMOJIS = [
   "🪥","🧼","🚿","🛁","💧","🧴","🧻","💊",
   "👕","👖","🧥","🧦","👟","🥾","🧤","🧢",
   "🎒","📚","✏️","📝","🎨","🎮","🧸","🖍️",
-  "🚗","🚌","🚲","🛴","🚂","🛵","🚪","🏫",
+  "🚗","🚌","🚐","🚎","🚏","🚲","🛴","🚂",
+  "🛵","🚪","🏫","🚍","🛻","🚖","🛹","✈️",
   "🌞","🌙","⭐","🌈","🔔","✅","🎉","💪",
   "🛏️","😴","🧴","🪞","🦷","👓","💼","🎵",
 ];
@@ -1212,7 +1239,10 @@ const MODAL_HTML = `
     font-size: 32px;
     width: 50px; height: 50px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--secondary-background-color);
+    background-color: var(--secondary-background-color);
+    background-size: 38px 38px;
+    background-repeat: no-repeat;
+    background-position: center;
     border-radius: 8px;
     flex: 0 0 50px;
   }
@@ -1229,14 +1259,27 @@ const MODAL_HTML = `
   }
   .emoji-pick {
     background: transparent; border: 2px solid transparent;
-    cursor: pointer; font-size: 22px;
-    padding: 6px; border-radius: 6px;
+    cursor: pointer;
+    padding: 4px; border-radius: 6px;
     transition: background 0.1s, border-color 0.1s;
+    display: flex; align-items: center; justify-content: center;
+    aspect-ratio: 1;
   }
   .emoji-pick:hover { background: rgba(255,255,255,0.08); }
   .emoji-pick.on {
     border-color: var(--primary-color, #03a9f4);
     background: color-mix(in srgb, var(--primary-color, #03a9f4) 20%, transparent);
+  }
+  .emoji-pick .emoji-glyph {
+    width: 32px; height: 32px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    display: inline-block;
+  }
+  .emoji-pick .emoji-glyph.emoji-native {
+    width: auto; height: auto;
+    font-size: 22px; line-height: 1;
   }
   .day-chips {
     display: flex; gap: 6px; flex-wrap: wrap;
