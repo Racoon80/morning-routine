@@ -1,5 +1,10 @@
 # Morning Routine for Home Assistant
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Racoon80&repository=morning-routine&category=integration)
+[![release](https://img.shields.io/github/v/release/Racoon80/morning-routine)](https://github.com/Racoon80/morning-routine/releases)
+[![license](https://img.shields.io/github/license/Racoon80/morning-routine)](LICENSE)
+
 A visual morning routine designed for kids (or anyone) who can't read a clock. Each step takes over the dashboard full-screen with a large picture and a single green→red countdown bar. The picture and the bar share the same dynamic color, so the urgency is obvious without numbers.
 
 When the routine is finished, the overlay disappears and the normal dashboard returns automatically.
