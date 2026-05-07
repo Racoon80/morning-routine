@@ -75,9 +75,11 @@ For best look use **monochrome silhouettes** (PNG with transparency or SVG) — 
 
 ```yaml
 type: custom:morning-routine-card
-active_step_entity: sensor.morning_routine_active_step
 tint_mode: mask        # mask | filter | none
 language: de           # de | lb | en  (omit to follow HA user language)
+# active_step_entity is optional — the card auto-discovers the
+# integration's sensor via a marker attribute, so it works in any
+# HA language without configuration.
 ```
 
 The card renders **nothing** when no step is active. When a step starts, it overlays the entire screen. Add it to whatever dashboard the tablet shows by default — the overlay handles everything.

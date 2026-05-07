@@ -10,7 +10,7 @@
  *   tint_mode: mask  # mask | filter | none
  */
 
-const VERSION = "0.1.0";
+const VERSION = "0.4.0";
 
 class MorningRoutineCard extends HTMLElement {
   constructor() {
@@ -26,22 +26,30 @@ class MorningRoutineCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return {
-      active_step_entity: "sensor.morning_routine_active_step",
-      tint_mode: "mask",
-    };
+    // No fixed entity — card auto-discovers via _mr_role marker.
+    return { tint_mode: "mask" };
   }
 
   setConfig(config) {
-    if (!config || !config.active_step_entity) {
-      throw new Error("active_step_entity is required");
-    }
     this._config = {
       tint_mode: "mask",
       language: null,
+      active_step_entity: null,
       ...config,
     };
     this._render();
+  }
+
+  _resolveEntity() {
+    if (this._config.active_step_entity) return this._config.active_step_entity;
+    if (!this._hass) return null;
+    for (const [eid, st] of Object.entries(this._hass.states)) {
+      if (!eid.startsWith("sensor.")) continue;
+      if (st && st.attributes && st.attributes._mr_role === "active_step") {
+        return eid;
+      }
+    }
+    return null;
   }
 
   set hass(hass) {
@@ -56,7 +64,12 @@ class MorningRoutineCard extends HTMLElement {
   // ── core ──────────────────────────────────────────────────────────────────
   _render() {
     if (!this._hass || !this._config) return;
-    const stateObj = this._hass.states[this._config.active_step_entity];
+    const entityId = this._resolveEntity();
+    if (!entityId) {
+      this._mountOverlay(false);
+      return;
+    }
+    const stateObj = this._hass.states[entityId];
 
     const active = stateObj && stateObj.state && stateObj.state !== "unknown" && stateObj.state !== "unavailable" && stateObj.state !== "None"
       ? stateObj.state
@@ -276,8 +289,8 @@ class MorningRoutineCardEditor extends HTMLElement {
         input, select { padding: 8px; border-radius: 6px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); }
       </style>
       <div class="row">
-        <label>Active step entity</label>
-        <input id="entity" value="${this._config.active_step_entity || "sensor.morning_routine_active_step"}" />
+        <label>Active step entity (leave blank for auto-discovery)</label>
+        <input id="entity" value="${this._config.active_step_entity || ""}" placeholder="auto" />
       </div>
       <div class="row">
         <label>Tint mode (mask works best for monochrome icons)</label>
@@ -293,11 +306,12 @@ class MorningRoutineCardEditor extends HTMLElement {
       </div>
     `;
     const fire = () => {
+      const entityVal = this.shadowRoot.getElementById("entity").value.trim();
       const event = new CustomEvent("config-changed", {
         detail: {
           config: {
             type: "custom:morning-routine-card",
-            active_step_entity: this.shadowRoot.getElementById("entity").value,
+            ...(entityVal && { active_step_entity: entityVal }),
             tint_mode: this.shadowRoot.getElementById("tint").value,
             language: this.shadowRoot.getElementById("lang").value || null,
           },

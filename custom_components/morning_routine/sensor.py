@@ -38,15 +38,17 @@ async def async_setup_entry(
 
 class _Base(CoordinatorEntity[MorningRoutineCoordinator], SensorEntity):
     _attr_has_entity_name = True
+    _suffix: str = ""
 
     def __init__(self, coordinator: MorningRoutineCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{self._suffix}"
-
-    @property
-    def _suffix(self) -> str:
-        raise NotImplementedError
+        # Stable, language-independent entity_id slug.
+        # Existing installs keep their old (translated) entity_id thanks to the
+        # entity registry — only fresh installs benefit. The card finds either
+        # version via the _mr_role marker attribute, so this is just for tidiness.
+        self._attr_suggested_object_id = f"morning_routine_{self._suffix}"
 
 
 class ActiveStepSensor(_Base):
@@ -64,6 +66,7 @@ class ActiveStepSensor(_Base):
         data = self.coordinator.data or {}
         active = data.get("active")
         return {
+            "_mr_role": "active_step",
             ATTR_NAME: active["name"] if active else None,
             ATTR_NAME_LB: active["name_lb"] if active else None,
             ATTR_IMAGE: active["image"] if active else None,
@@ -85,6 +88,10 @@ class ProgressSensor(_Base):
             return 0.0
         return round(self.coordinator.data.get("progress", 0.0) * 100, 1)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"_mr_role": "progress"}
+
 
 class TimeLeftSensor(_Base):
     _attr_translation_key = "time_left"
@@ -97,3 +104,7 @@ class TimeLeftSensor(_Base):
         if not self.coordinator.data:
             return 0
         return int(self.coordinator.data.get("time_left", 0))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"_mr_role": "time_left"}
