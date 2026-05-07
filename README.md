@@ -5,34 +5,39 @@
 [![release](https://img.shields.io/github/v/release/Racoon80/morning-routine)](https://github.com/Racoon80/morning-routine/releases)
 [![license](https://img.shields.io/github/license/Racoon80/morning-routine)](LICENSE)
 
-A visual morning routine designed for kids (or anyone) who can't read a clock. Each step takes over the dashboard full-screen with a large picture and a single green→red countdown bar. The picture and the bar share the same dynamic color, so the urgency is obvious without numbers.
+A visual morning routine for Home Assistant — designed for kids (or anyone) who can't read a clock yet. Each step takes over the dashboard full-screen with a large 3D image and a green→red countdown bar. The image and the bar share the same dynamic color, so the time pressure is obvious without any numbers.
 
-When the routine is finished, the overlay disappears and the normal dashboard returns automatically.
+When idle, the card shows the day's full schedule with status indicators. You can add, edit and remove steps directly from the dashboard — no YAML, no settings panel hopping.
 
 ---
 
 ## Features
 
-- **Visual-only** — picture + colored countdown, no clock reading required
-- **Color-synced image** — the image is tinted with the same color as the bar (CSS `mask`)
-- **Self-closing overlay** — fullscreen during a step, invisible otherwise; no Browser Mod needed
-- **UI-configurable steps** — add / edit / remove via Home Assistant Settings → Devices & Services → Configure
-- **TTS announcement (optional)** — works with Luxembourgish TTS, Cloud TTS, etc.
-- **Chime (optional)** — plays a sound on step start via any media_player
+- **Visual-only countdown** — huge picture + colour-shifting bar, no clock-reading required
+- **Microsoft Fluent 3D emojis by default** — 1500+ emoji renders served from CDN, gorgeous on any device. Twemoji and native fallbacks available
+- **In-card editor** — add / edit / remove steps via a modal in the card itself, including a 64-emoji picker (or paste any URL)
+- **Day schedule view** when idle — see today's whole routine with active / upcoming / done / skipped status
+- **Last-15-second pulse** — bar, image and step name pulse in unison so the urgency is felt
+- **60 fps smoothness** — client-side `requestAnimationFrame` loop drives the bar; server ticks every second
+- **Auto-discovery** — the card finds its sensor automatically, works in any HA language
+- **Self-closing overlay** — full-screen during a step, idle card otherwise; no Browser Mod needed
+- **Optional TTS** with pre-step warning (60 s default) — works with Luxembourgish TTS, Cloud TTS, etc.
+- **Optional chime** on step start via any `media_player`
 - **Multi-language** — Deutsch · Lëtzebuergesch · English
-- **Per-step day selection** — Mon/Tue/.../Sun
-- **Single install** — the Lovelace card is bundled, no separate install
-- **Sensors** — `active_step`, `progress`, `time_left` for automations
+- **Per-step day selection** — Mon / Tue / … / Sun
+- **Smart overlap handling** — when two windows overlap, the later-starting step takes focus; earlier one is marked `skipped`
+- **Snooze auto-reset** — `start_now` and `snooze` only shift the current routine; the schedule snaps back to wall-clock once it finishes
+- **Single install** — Lovelace card and resource registration are bundled with the integration; no separate setup
 
 ---
 
 ## Install
 
-### Via HACS (recommended once published)
+### Via HACS (recommended)
 
-1. HACS → Integrations → ⋮ → Custom repositories
-2. Add `https://github.com/racoon80/morning-routine` as **Integration**
-3. Install **Morning Routine**, then restart Home Assistant
+1. HACS → Integrations → ⋮ → **Custom repositories**
+2. Add `https://github.com/Racoon80/morning-routine` as **Integration**
+3. Install **Morning Routine**, then **restart Home Assistant**
 4. Settings → Devices & Services → Add Integration → **Morning Routine**
 
 ### Manual
@@ -41,33 +46,60 @@ When the routine is finished, the overlay disappears and the normal dashboard re
 2. Restart HA
 3. Add the integration via Settings → Devices & Services
 
-The Lovelace card auto-loads — no need to register a resource manually.
+The Lovelace card is auto-loaded and auto-registered as a Lovelace resource — no extra setup, no `?v=...` URL to paste anywhere.
 
 ---
 
 ## Configure steps
 
+Two paths — pick whichever feels natural:
+
+### A. From the dashboard (recommended)
+
+When the card is on a dashboard:
+
+- Tap the **✏️ pencil** on any schedule row to edit that step
+- Tap **＋ Add step** at the bottom of the schedule to add a new one
+- The modal lets you set name, start time, duration, picture (emoji grid + custom URL field) and active days
+- **Delete** is in the modal when editing
+
+### B. From HA settings
+
 Settings → Devices & Services → **Morning Routine** → **Configure**
 
 Menu options:
-- **Add a step** — name (DE), Lëtzebuergesch name, start time, duration, image URL, days
-- **Edit a step**
-- **Remove a step**
-- **Sound, voice & language** — TTS service/target, chime, default language
+- Add a step / Edit a step / Remove a step
+- **Sound, voice & language** — TTS service/target, chime, language, pre-warn seconds
 
-### Bundled images (no extra setup)
+---
 
-The integration ships with a default silhouette set served at `/morning_routine_frontend/images/`:
+## Pictures
+
+Three sources — the same `image` field on a step accepts all three.
+
+### 1. Emojis (default — recommended)
+
+Type or pick any emoji (☕, 👕, 🪥, 🚌 …). Rendered as one of:
+
+- **`fluent`** (default) — Microsoft Fluent Emoji 3D PNGs from jsDelivr, 256×256, gorgeous
+- **`twemoji`** — Twitter SVG emoji, flat 2D
+- **`native`** — system font, fully offline
+
+Switch in the card editor → *Emoji style*.
+
+### 2. Bundled SVG silhouettes
+
+Eight monochrome icons ship with the integration at `/morning_routine_frontend/images/`:
 
 `coffee.svg` · `breakfast.svg` · `teeth.svg` · `clothes.svg` · `shoes.svg` · `backpack.svg` · `shower.svg` · `done.svg`
 
-The default routine uses these out of the box.
+These get tinted with the current bar colour via CSS `mask`, so the silhouette glows from green to red as time runs out.
 
-### Custom images
+### 3. Your own files
 
-Drop your own files into `config/www/morning/` on your HA host and reference them as `/local/morning/<file>.png`.
+Drop PNG/JPG/WebP/SVG into `config/www/morning/` on your HA host. They appear automatically in the picker dropdown when you edit a step in the HA settings flow, and you can also reference them by URL anywhere — `/local/morning/<file>.png`.
 
-For best look use **monochrome silhouettes** (PNG with transparency or SVG) — the integration tints them dynamically. Photos work too via `tint_mode: filter` or `tint_mode: none` on the card.
+For colour-shift to work on photos, set `tint_mode: filter` (hue-rotate) or `tint_mode: none` (no tinting) in the card editor.
 
 ---
 
@@ -75,24 +107,28 @@ For best look use **monochrome silhouettes** (PNG with transparency or SVG) — 
 
 ```yaml
 type: custom:morning-routine-card
-tint_mode: mask        # mask | filter | none
-language: de           # de | lb | en  (omit to follow HA user language)
-# active_step_entity is optional — the card auto-discovers the
-# integration's sensor via a marker attribute, so it works in any
-# HA language without configuration.
+emoji_style: fluent     # fluent | twemoji | native
+tint_mode: mask         # mask | filter | none  (only for SVG/PNG)
+language: de            # de | lb | en  (omit to follow HA user language)
+# active_step_entity is optional — auto-discovered via the _mr_role
+# marker attribute, so the card works regardless of UI language.
 ```
 
-The card renders **nothing** when no step is active. When a step starts, it overlays the entire screen. Add it to whatever dashboard the tablet shows by default — the overlay handles everything.
+Or just add it from the dashboard card picker — `Morning Routine Card`.
+
+The card displays a compact daily schedule when no step is active and takes over the full screen when one is. Add it to whatever dashboard the tablet shows by default; the overlay handles itself.
 
 ---
 
 ## Services
 
-| Service | Description |
+| Service | What it does |
 |---|---|
-| `morning_routine.skip_step` | End current step early |
-| `morning_routine.start_now` | Start routine right now (independent of clock) |
-| `morning_routine.snooze` | Push everything forward by N minutes |
+| `morning_routine.start_now` | Begin the routine right now, regardless of clock time. Auto-clears the offset when the (shifted) last step finishes. |
+| `morning_routine.skip_step` | End the currently active step immediately. |
+| `morning_routine.snooze` | Push the routine forward by `minutes` minutes (default 5). Auto-clears when finished. |
+| `morning_routine.reset_snooze` | Manually clear any `start_now` / `snooze` time-shift and snap back to wall-clock. |
+| `morning_routine.set_steps` | Replace the entire step list. Used internally by the in-card editor; you can call it from automations to switch between routine variants. |
 
 ---
 
@@ -105,16 +141,52 @@ The card renders **nothing** when no step is active. When a step starts, it over
 | `morning_routine_step_finished` | `index, name` |
 | `morning_routine_routine_finished` | `{}` |
 
-Use these to trigger lights, music, etc.
+Wire these to lights, music, blinds, anything.
+
+---
+
+## Sensors
+
+| Entity | State | Useful attributes |
+|---|---|---|
+| `sensor.<active_step>` | step name (or `unknown`) | `image`, `progress`, `time_left`, `next_step`, `schedule`, `all_steps`, `_mr_role` |
+| `sensor.<progress>` | 0–100 % | — |
+| `sensor.<time_left>` | seconds | — |
+
+Entity slugs depend on your HA UI language (e.g. `sensor.aktiver_schritt` in DE). The card auto-discovers them via the `_mr_role` marker, so you never need to hard-code the entity ID.
+
+---
+
+## Schedule overlap
+
+When two step windows overlap (e.g. `07:30–07:45` Coffee and `07:35–07:50` Get-dressed), the **step with the later start time wins** — Get-dressed takes the overlay at 07:35, and Coffee shows in the schedule as `skipped` (struck through, amber badge). This makes more sense for sequential routines than waiting for the older step to finish.
+
+If you don't want overlap at all, just keep your start times spaced out further than each step's duration.
 
 ---
 
 ## Tablet setup tip
 
-Mount a wall tablet with `Fully Kiosk Browser` or the HA Companion App pointed at a dashboard that contains the card. No further configuration is needed — the overlay shows up only during routine steps and steps aside otherwise.
+Mount a wall tablet (Fire HD, iPad, old phone …) with **Fully Kiosk Browser** or the HA Companion App, point it at a dashboard that contains the card. The card stays as a small schedule when idle and goes full-screen during steps — perfect ambient morning helper.
+
+---
+
+## Local development
+
+The integration is two parts that can be tweaked independently:
+
+- **Backend** — `custom_components/morning_routine/` (Python, no build step)
+- **Card** — `custom_components/morning_routine/frontend/morning-routine-card.js` (vanilla Web Component, no build step, no Lit import)
+
+Edit, copy into `<HA config>/custom_components/morning_routine/`, restart HA. The card is registered with a `?v=<manifest-version>` query string so cache busts automatically on integration updates.
+
+The Fluent emoji map (`frontend/fluent_map.json`, ~95 KB) is generated from [microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-emoji) — see commit history for the build approach.
 
 ---
 
 ## Credits
 
-Built for a kid in Kayl 🇱🇺 who needed a clock he could understand.
+- Built for a kid in Kayl 🇱🇺 who needed a clock he could understand.
+- 3D emoji renders by [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (MIT).
+- Twemoji fallback by [jdecked/twemoji](https://github.com/jdecked/twemoji) (CC-BY 4.0).
+- Hosted by [jsDelivr](https://www.jsdelivr.com/).
