@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.8.0";
+const VERSION = "0.8.1";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -116,11 +116,16 @@ class MorningRoutineCard extends HTMLElement {
       language: null,
       active_step_entity: null,
       emoji_style: "fluent",   // fluent | twemoji | native
-      ...config,
+      ...(config || {}),
     };
     if (this._config.emoji_style === "fluent") {
       // Fire-and-forget; once it lands, the next render uses the map.
-      ensureFluentMap().then(() => this._render());
+      try {
+        const p = ensureFluentMap();
+        if (p && typeof p.then === "function") {
+          p.then(() => this._render()).catch(() => {});
+        }
+      } catch (_) { /* never let this break setConfig */ }
     }
     this._renderPlaceholder();
     this._render();
@@ -137,13 +142,15 @@ class MorningRoutineCard extends HTMLElement {
   }
 
   getCardSize() {
-    const data = this._readData();
-    if (data && data.schedule && data.schedule.length) return Math.min(8, 1 + data.schedule.length);
+    try {
+      const data = this._readData();
+      if (data && data.schedule && data.schedule.length) return Math.min(8, 1 + data.schedule.length);
+    } catch (_) { /* never block HA over a card-size estimate */ }
     return 2;
   }
 
   _resolveEntity() {
-    if (this._config.active_step_entity) return this._config.active_step_entity;
+    if (this._config?.active_step_entity) return this._config.active_step_entity;
     if (!this._hass) return null;
     for (const [eid, st] of Object.entries(this._hass.states)) {
       if (!eid.startsWith("sensor.")) continue;
