@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.9.1";
+const VERSION = "0.9.2";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -118,7 +118,7 @@ class MorningRoutineCard extends HTMLElement {
       language: null,
       active_step_entity: null,
       emoji_style: "fluent",   // fluent | twemoji | native
-      urgent_beep: true,        // 3 beeps in last 15s (15/10/5)
+      urgent_beep: true,        // 2 beeps near end (10s, 5s)
       beep_volume: 0.35,        // 0..1
       ...(config || {}),
     };
@@ -263,16 +263,16 @@ class MorningRoutineCard extends HTMLElement {
     this._anim = requestAnimationFrame(tick);
   }
 
-  /** 3 short beeps in the last 15 seconds: at 15, 10, 5 seconds remaining.
+  /** 2 short beeps in the last 10 seconds: at 10 and 5 seconds remaining.
    *  Synthesised via Web Audio — no asset to host, works offline. */
   _maybeBeep(remainingSec) {
     if (this._config?.urgent_beep === false) return;
     const sec = Math.ceil(remainingSec);
-    if (sec !== 15 && sec !== 10 && sec !== 5) return;
+    if (sec !== 10 && sec !== 5) return;
     if (this._beeped.has(sec)) return;
     this._beeped.add(sec);
-    // Slight pitch increase per beep so they feel escalating: 660 → 880 → 1100 Hz.
-    const freq = sec === 15 ? 660 : sec === 10 ? 880 : 1100;
+    // Higher pitch on the second beep so the urgency is audibly increasing.
+    const freq = sec === 10 ? 880 : 1100;
     this._playBeep(freq);
   }
 
@@ -732,7 +732,7 @@ class MorningRoutineCardEditor extends HTMLElement {
         <input id="lang" value="${this._config.language || ""}" placeholder="de | lb | en (blank = HA default)" />
       </div>
       <div class="row">
-        <label><input type="checkbox" id="urgent-beep" ${this._config.urgent_beep === false ? "" : "checked"} /> Beep 3× in last 15 seconds (15s, 10s, 5s)</label>
+        <label><input type="checkbox" id="urgent-beep" ${this._config.urgent_beep === false ? "" : "checked"} /> Beep 2× near end (10s, 5s)</label>
       </div>
       <div class="row">
         <label>Beep volume (0–1)</label>

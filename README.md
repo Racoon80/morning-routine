@@ -19,7 +19,7 @@ When idle, the card shows the day's full schedule with status indicators. You ca
 - **Microsoft Fluent 3D emojis by default** — 1500+ emoji renders served from CDN, gorgeous on any device. Twemoji and native fallbacks available
 - **In-card editor** — add / edit / remove steps via a modal in the card itself, including a 72-emoji picker rendered with the same 3D PNGs (or paste any URL)
 - **Day schedule view** when idle — see today's whole routine with active / upcoming / done / skipped status
-- **Last-15-second pulse + 3 beeps** — bar, image and step name pulse; three escalating-pitch beeps fire at 15 s, 10 s and 5 s remaining (synthesised via Web Audio, no audio file needed). Toggleable per-card.
+- **Last-15-second pulse + 2 beeps** — bar, image and step name pulse; two escalating-pitch beeps fire at 10 s and 5 s remaining (synthesised via Web Audio, no audio file needed). Toggleable per-card.
 - **60 fps smoothness** — client-side `requestAnimationFrame` loop drives the bar; server ticks every second
 - **Auto-discovery** — the card finds its sensor automatically, works in any HA language
 - **Self-closing overlay** — full-screen during a step, idle card otherwise; no Browser Mod needed
@@ -112,7 +112,7 @@ type: custom:morning-routine-card
 emoji_style: fluent     # fluent | twemoji | native
 tint_mode: mask         # mask | filter | none  (only for SVG/PNG)
 language: de            # de | lb | en  (omit to follow HA user language)
-urgent_beep: true       # 3 beeps at 15s/10s/5s remaining (default true)
+urgent_beep: true       # 2 beeps at 10s and 5s remaining (default true)
 beep_volume: 0.35       # 0..1, default 0.35
 # active_step_entity is optional — auto-discovered via the _mr_role
 # marker attribute, so the card works regardless of UI language.
