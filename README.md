@@ -208,7 +208,6 @@ Issues and PRs are welcome. The codebase is tiny (~1500 lines JS, ~500 lines Pyt
 
 ## Credits
 
-- Built for a kid in Kayl 🇱🇺 who needed a clock he could understand.
 - 3D emoji renders by [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (MIT).
 - Twemoji fallback by [jdecked/twemoji](https://github.com/jdecked/twemoji) (CC-BY 4.0).
 - Hosted by [jsDelivr](https://www.jsdelivr.com/).
