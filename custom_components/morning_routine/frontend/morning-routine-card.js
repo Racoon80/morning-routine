@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.9.2";
+const VERSION = "0.10.0";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -120,6 +120,10 @@ class MorningRoutineCard extends HTMLElement {
       emoji_style: "fluent",   // fluent | twemoji | native
       urgent_beep: true,        // 2 beeps near end (10s, 5s)
       beep_volume: 0.35,        // 0..1
+      // High-contrast palette for users with visual impairments. When false,
+      // the OS-level `prefers-contrast: more` setting is still respected via
+      // matchMedia in _isHighContrast(), so accessibility prefs propagate.
+      high_contrast: false,
       ...(config || {}),
     };
     if (this._config.emoji_style === "fluent") {
@@ -151,6 +155,15 @@ class MorningRoutineCard extends HTMLElement {
       if (data && data.schedule && data.schedule.length) return Math.min(8, 1 + data.schedule.length);
     } catch (_) { /* never block HA over a card-size estimate */ }
     return 2;
+  }
+
+  _isHighContrast() {
+    if (this._config?.high_contrast) return true;
+    try {
+      return !!(window.matchMedia && window.matchMedia("(prefers-contrast: more)").matches);
+    } catch (_) {
+      return false;
+    }
   }
 
   _resolveEntity() {
@@ -338,6 +351,7 @@ class MorningRoutineCard extends HTMLElement {
   _renderHostIdle(data, language, minimized) {
     const host = this.shadowRoot.getElementById("mr-host");
     if (!host) return;
+    host.classList.toggle("hc", this._isHighContrast());
     const L = LABELS[language] || LABELS.en;
     const schedule = data.schedule || [];
     const next = data.next_step || null;
@@ -578,6 +592,7 @@ class MorningRoutineCard extends HTMLElement {
     overlay.style.setProperty("--mr-color", color);
     overlay.style.setProperty("--mr-color-soft", colorSoft);
     overlay.style.setProperty("--mr-hue", `${hue - 120}deg`);
+    overlay.classList.toggle("hc", this._isHighContrast());
 
     const name = (language === "lb" ? data.name_lb : data.name) || "";
     const next = data.next_step;
@@ -738,6 +753,10 @@ class MorningRoutineCardEditor extends HTMLElement {
         <label>Beep volume (0–1)</label>
         <input id="beep-volume" type="number" min="0" max="1" step="0.05" value="${this._config.beep_volume ?? 0.35}" />
       </div>
+      <div class="row">
+        <label><input type="checkbox" id="high-contrast" ${this._config.high_contrast ? "checked" : ""} /> High-contrast mode (better for visual impairments)</label>
+        <span class="hint">Pure black/white palette, yellow accent (colorblind-safe), heavier borders. The OS setting <em>prefers-contrast: more</em> is always respected even when this is off.</span>
+      </div>
     `;
     const fire = () => {
       const entityVal = this.shadowRoot.getElementById("entity").value.trim();
@@ -751,6 +770,7 @@ class MorningRoutineCardEditor extends HTMLElement {
             language: this.shadowRoot.getElementById("lang").value || null,
             urgent_beep: this.shadowRoot.getElementById("urgent-beep").checked,
             beep_volume: parseFloat(this.shadowRoot.getElementById("beep-volume").value) || 0.35,
+            high_contrast: this.shadowRoot.getElementById("high-contrast").checked,
           },
         },
         bubbles: true, composed: true,
@@ -763,6 +783,7 @@ class MorningRoutineCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("lang").addEventListener("change", fire);
     this.shadowRoot.getElementById("urgent-beep").addEventListener("change", fire);
     this.shadowRoot.getElementById("beep-volume").addEventListener("change", fire);
+    this.shadowRoot.getElementById("high-contrast").addEventListener("change", fire);
   }
 }
 
@@ -1012,6 +1033,74 @@ const BASE_CSS = `
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.2); opacity: 0.7; }
   }
+
+  /* ── High contrast (idle card) ──────────────────────────────────────────
+     Replaces opacity-based "done/upcoming" cues with explicit borders + bold
+     weights, and forces full-strength colors for status pills. */
+  ha-card.mr-host.hc {
+    border: 2px solid var(--primary-text-color);
+  }
+  ha-card.mr-host.hc .idle-header .title { font-weight: 900; }
+  ha-card.mr-host.hc .next-hint {
+    background-color: var(--primary-text-color);
+    color: var(--card-background-color);
+    opacity: 1;
+    font-weight: 700;
+  }
+  ha-card.mr-host.hc .next-hint .dot {
+    background: var(--card-background-color);
+    box-shadow: 0 0 0 3px var(--primary-text-color);
+  }
+  ha-card.mr-host.hc .row {
+    border: 2px solid transparent;
+  }
+  ha-card.mr-host.hc .row.upcoming {
+    border-color: var(--primary-text-color);
+  }
+  ha-card.mr-host.hc .row.active {
+    background: var(--primary-text-color);
+    color: var(--card-background-color);
+    border-color: var(--primary-text-color);
+    box-shadow: none;
+  }
+  ha-card.mr-host.hc .row.active .row-name,
+  ha-card.mr-host.hc .row.active .row-time {
+    color: var(--card-background-color);
+    opacity: 1;
+    font-weight: 800;
+  }
+  ha-card.mr-host.hc .row.active .row-status {
+    background: var(--card-background-color);
+    color: var(--primary-text-color);
+    border: 2px solid var(--card-background-color);
+    font-weight: 800;
+  }
+  ha-card.mr-host.hc .row.done {
+    opacity: 1;
+    border-color: var(--primary-text-color);
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+  }
+  ha-card.mr-host.hc .row.done .row-name,
+  ha-card.mr-host.hc .row.done .row-time {
+    opacity: 1;
+  }
+  ha-card.mr-host.hc .row.skipped {
+    opacity: 1;
+    border-color: #f59e0b;
+    text-decoration-thickness: 2px;
+    text-decoration-color: currentColor;
+  }
+  ha-card.mr-host.hc .row-status {
+    border: 2px solid currentColor;
+    opacity: 1;
+    font-weight: 800;
+  }
+  ha-card.mr-host.hc .add-btn {
+    border-style: solid;
+    border-width: 2px;
+    font-weight: 800;
+  }
 `;
 
 const OVERLAY_HTML = `
@@ -1212,6 +1301,61 @@ const OVERLAY_HTML = `
   @keyframes name-pulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.04); }
+  }
+
+  /* ── High contrast mode ──────────────────────────────────────────────────
+     Triggered by config.high_contrast=true OR @media (prefers-contrast: more).
+     Goals: pure black/white palette, colorblind-safe yellow accent (instead
+     of the green→red hue ramp), no opacity tricks, heavier borders, bolder
+     text. The bar still encodes progress via its width + the % readout. */
+  #overlay.hc {
+    background-color: #000;
+    background-image: none;
+  }
+  #overlay.hc .clock {
+    color: #fff;
+    text-shadow: none;
+    font-weight: 900;
+  }
+  #overlay.hc .cancel-btn {
+    background: #fff;
+    border: 3px solid #fff;
+    color: #000;
+  }
+  #overlay.hc .cancel-btn:hover {
+    background: #ffeb3b;
+    border-color: #ffeb3b;
+  }
+  #overlay.hc .name {
+    color: #fff;
+    text-shadow: none;
+    font-weight: 900;
+  }
+  #overlay.hc .image-wrap::before { display: none; }
+  #overlay.hc .image.emoji,
+  #overlay.hc .image.twemoji,
+  #overlay.hc .image.fluent {
+    filter: drop-shadow(0 0 0 #fff) contrast(1.15);
+  }
+  #overlay.hc .image.mask { background-color: #fff; }
+  #overlay.hc .image.filter { filter: contrast(1.4) brightness(1.15); }
+  #overlay.hc .bar {
+    background: #000;
+    border: 3px solid #fff;
+    box-shadow: none;
+  }
+  #overlay.hc .bar-fill {
+    background: #ffeb3b;            /* yellow on black — WCAG AAA */
+    box-shadow: none;
+  }
+  #overlay.hc.urgent .bar-fill {
+    background: #ff5722;            /* orange-red, distinct from yellow */
+  }
+  #overlay.hc .meta,
+  #overlay.hc .next-line {
+    opacity: 1;
+    color: #fff;
+    font-weight: 800;
   }
 </style>
 <div id="overlay">
