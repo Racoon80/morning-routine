@@ -23,7 +23,8 @@
           "add_step": "Schritt hinzufügen",
           "edit_step": "Schritt bearbeiten",
           "remove_step": "Schritt entfernen",
-          "settings": "Ton, Stimme & Sprache"
+          "settings": "Ton, Stimme & Sprache",
+          "display": "Anzeige & Barrierefreiheit"
         }
       },
       "add_step": {
@@ -60,7 +61,12 @@
           "chime_enabled": "Klingel beim Schritt-Start",
           "chime_entity": "Klingel-Media-Player",
           "chime_url": "Klingel-Audio-URL",
-          "prewarn_seconds": "Voransage (Sekunden vorher, 0 = aus)",
+          "prewarn_seconds": "Voransage (Sekunden vorher, 0 = aus)"
+        }
+      },
+      "display": {
+        "title": "Anzeige & Barrierefreiheit",
+        "data": {
           "high_contrast": "Hoher Kontrast (besser für Sehbehinderte)"
         }
       }

@@ -23,7 +23,8 @@
           "add_step": "Schrëtt derbäi",
           "edit_step": "Schrëtt änneren",
           "remove_step": "Schrëtt ewechhuelen",
-          "settings": "Toun, Stëmm & Sprooch"
+          "settings": "Toun, Stëmm & Sprooch",
+          "display": "Affichage & Accessibilitéit"
         }
       },
       "add_step": {
@@ -60,7 +61,12 @@
           "chime_enabled": "Klangel beim Schrëtt-Ufank",
           "chime_entity": "Klangel-Media-Player",
           "chime_url": "Klangel-Audio-URL",
-          "prewarn_seconds": "Viraussoen (Sekonnen virdrun, 0 = aus)",
+          "prewarn_seconds": "Viraussoen (Sekonnen virdrun, 0 = aus)"
+        }
+      },
+      "display": {
+        "title": "Affichage & Accessibilitéit",
+        "data": {
           "high_contrast": "Héijen Kontrast (besser fir Sehbehënnerten)"
         }
       }

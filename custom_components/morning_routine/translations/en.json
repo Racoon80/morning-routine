@@ -23,7 +23,8 @@
           "add_step": "Add a step",
           "edit_step": "Edit a step",
           "remove_step": "Remove a step",
-          "settings": "Sound, voice & language"
+          "settings": "Sound, voice & language",
+          "display": "Display & accessibility"
         }
       },
       "add_step": {
@@ -60,7 +61,12 @@
           "chime_enabled": "Play chime on step start",
           "chime_entity": "Chime media player",
           "chime_url": "Chime audio URL",
-          "prewarn_seconds": "Pre-warn announcement (seconds before step, 0 = off)",
+          "prewarn_seconds": "Pre-warn announcement (seconds before step, 0 = off)"
+        }
+      },
+      "display": {
+        "title": "Display & accessibility",
+        "data": {
           "high_contrast": "High-contrast mode (better for visual impairments)"
         }
       }

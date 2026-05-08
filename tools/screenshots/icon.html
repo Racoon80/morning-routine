@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>icon</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body { width: 256px; height: 256px; }
+  .icon {
+    width: 256px; height: 256px;
+    border-radius: 56px;
+    background: radial-gradient(circle at 50% 38%, #1f2329 0%, #0a0b0f 70%);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06);
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  .sun {
+    position: absolute;
+    top: 28px; left: 50%;
+    transform: translateX(-50%);
+    width: 168px; height: 168px;
+    background-image: url("assets/sunrise.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: drop-shadow(0 8px 18px rgba(255,200,80,0.35));
+  }
+  .bar {
+    position: absolute;
+    left: 32px; right: 32px; bottom: 32px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+  }
+  .fill {
+    height: 100%; width: 60%;
+    background: linear-gradient(90deg, #4ade80 0%, #facc15 55%, #f87171 100%);
+    box-shadow: 0 0 14px rgba(250,204,21,0.55);
+    border-radius: 999px;
+  }
+</style>
+</head><body>
+<div class="icon">
+  <div class="sun"></div>
+  <div class="bar"><div class="fill"></div></div>
+</div>
+</body></html>

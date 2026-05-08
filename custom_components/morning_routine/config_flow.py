@@ -214,7 +214,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_step", "edit_step", "remove_step", "settings"],
+            menu_options=["add_step", "edit_step", "remove_step", "settings", "display"],
         )
 
     # ── add ──────────────────────────────────────────────────────────────────
@@ -338,13 +338,28 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                         mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
+            }
+        )
+        return self.async_show_form(step_id="settings", data_schema=schema)
+
+    # ── display & accessibility ──────────────────────────────────────────────
+    async def async_step_display(self, user_input: dict | None = None) -> FlowResult:
+        """Visual / accessibility settings, surfaced as its own menu entry so
+        the high-contrast toggle is discoverable instead of buried under the
+        sound-and-voice form."""
+        opts = self.entry.options
+        if user_input is not None:
+            new_opts = {**opts, **user_input, CONF_STEPS: self._steps}
+            return self.async_create_entry(title="", data=new_opts)
+        schema = vol.Schema(
+            {
                 vol.Optional(
                     CONF_HIGH_CONTRAST,
                     default=opts.get(CONF_HIGH_CONTRAST, False),
                 ): bool,
             }
         )
-        return self.async_show_form(step_id="settings", data_schema=schema)
+        return self.async_show_form(step_id="display", data_schema=schema)
 
     # ── helpers ──────────────────────────────────────────────────────────────
     async def _save_and_exit(self) -> FlowResult:

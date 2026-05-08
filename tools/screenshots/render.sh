@@ -34,5 +34,16 @@ render overlay-hc     "1920,1080"
 render idle-normal    "1920,1080"
 render idle-hc        "1920,1080"
 
+# Icon — 256x256, transparent background. The icon HTML draws its own
+# rounded-rect background, so the page itself is transparent.
+echo "→ icon (256x256)"
+"$CHROME" \
+  --headless=new --disable-gpu --hide-scrollbars --no-sandbox \
+  --window-size="256,256" \
+  --virtual-time-budget=10000 \
+  --default-background-color=00000000 \
+  --screenshot="$OUT/icon.png" \
+  "file://$DIR/icon.html" >/dev/null 2>&1
+
 echo "Done. Output:"
 ls -la "$OUT"/*.png
