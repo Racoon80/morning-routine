@@ -13,6 +13,16 @@ My son has a handicap and can't read a clock. So I built a Home Assistant card t
 
 HACS-installable, MIT licensed, works in DE / LB / EN.
 
+Active step (full-screen overlay):
+https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/overlay-normal.png
+
+Idle schedule on the dashboard:
+https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/idle-normal.png
+
+A redditor on the v0.9 thread asked for a high-contrast mode for users with visual impairments — shipped today in v0.10.0. Pure black/white palette, colourblind-safe yellow bar, auto-respects the OS-level `prefers-contrast: more` setting:
+https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/overlay-hc.png
+https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/idle-hc.png
+
 https://github.com/Racoon80/morning-routine
 
 If it helps another family, all the better.

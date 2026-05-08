@@ -1,0 +1,257 @@
+/* Mockup styles — mirrors BASE_CSS + OVERLAY-HTML <style> + HC overrides
+   from custom_components/morning_routine/frontend/morning-routine-card.js.
+   Kept in sync manually; only used for /images/*.png screenshot generation. */
+
+/* --- HA CSS-vars (normally provided by Lovelace, dark theme) --- */
+:root {
+  --primary-text-color: #ffffff;
+  --secondary-text-color: #9aa0a6;
+  --primary-color: #03a9f4;
+  --card-background-color: #1c1c1e;
+  --secondary-background-color: #2c2c2e;
+  --divider-color: rgba(255,255,255,0.12);
+  --text-primary-color: #ffffff;
+}
+html, body {
+  margin: 0; padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0e0f12;
+  color: var(--primary-text-color);
+  width: 100%; height: 100%;
+}
+
+/* ── BASE_CSS (idle ha-card) ────────────────────────────────────────────── */
+ha-card.mr-host {
+  display: block;
+  padding: 16px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--card-background-color);
+  width: min(720px, 100%);
+}
+.idle-loading { padding: 4px; font-size: 14px; opacity: 0.7; }
+.idle-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.idle-header .title {
+  font-size: 17px; font-weight: 700;
+  color: var(--primary-text-color);
+  letter-spacing: -0.01em;
+}
+.edit-btn {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 18px; padding: 4px 8px; border-radius: 6px;
+  color: var(--primary-text-color); opacity: 0.6;
+}
+.next-hint {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--primary-text-color); opacity: 0.85;
+  padding: 8px 10px;
+  background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  border-radius: 8px; margin-bottom: 10px;
+}
+.next-hint .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color) 24%, transparent);
+}
+.schedule { display: flex; flex-direction: column; gap: 4px; }
+.row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto auto auto;
+  gap: 10px; align-items: center;
+  padding: 8px 10px; border-radius: 8px;
+}
+.row-edit {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 14px; padding: 4px 6px; border-radius: 6px; opacity: 0.5;
+}
+.schedule-foot { margin-top: 10px; display: flex; justify-content: center; }
+.add-btn {
+  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  color: var(--primary-color);
+  border: 1px dashed color-mix(in srgb, var(--primary-color) 50%, transparent);
+  border-radius: 8px; padding: 8px 16px;
+  font-size: 14px; font-weight: 600;
+}
+.row.active {
+  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 40%, transparent);
+}
+.row.done { opacity: 0.45; }
+.row.skipped {
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+.row.skipped .row-status {
+  background: color-mix(in srgb, #f59e0b 20%, transparent);
+  color: #f59e0b; opacity: 1;
+}
+.row-icon { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.row-name { font-size: 14px; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; }
+.row-time { font-size: 13px; color: var(--primary-text-color); opacity: 0.7; font-variant-numeric: tabular-nums; }
+.row-status {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--secondary-background-color);
+  color: var(--primary-text-color); opacity: 0.65;
+}
+.row.active .row-status {
+  background: var(--primary-color);
+  color: var(--text-primary-color); opacity: 1;
+}
+.row.done .row-status {
+  background: rgba(74,222,128,0.2); color: #4ade80; opacity: 1;
+}
+
+/* ── BASE_CSS (HC idle overrides) ───────────────────────────────────────── */
+ha-card.mr-host.hc { border: 2px solid var(--primary-text-color); }
+ha-card.mr-host.hc .idle-header .title { font-weight: 900; }
+ha-card.mr-host.hc .next-hint {
+  background-color: var(--primary-text-color);
+  color: var(--card-background-color);
+  opacity: 1; font-weight: 700;
+}
+ha-card.mr-host.hc .next-hint .dot {
+  background: var(--card-background-color);
+  box-shadow: 0 0 0 3px var(--primary-text-color);
+}
+ha-card.mr-host.hc .row { border: 2px solid transparent; }
+ha-card.mr-host.hc .row.upcoming { border-color: var(--primary-text-color); }
+ha-card.mr-host.hc .row.active {
+  background: var(--primary-text-color);
+  color: var(--card-background-color);
+  border-color: var(--primary-text-color);
+  box-shadow: none;
+}
+ha-card.mr-host.hc .row.active .row-name,
+ha-card.mr-host.hc .row.active .row-time {
+  color: var(--card-background-color); opacity: 1; font-weight: 800;
+}
+ha-card.mr-host.hc .row.active .row-status {
+  background: var(--card-background-color); color: var(--primary-text-color);
+  border: 2px solid var(--card-background-color); font-weight: 800;
+}
+ha-card.mr-host.hc .row.done {
+  opacity: 1; border-color: var(--primary-text-color);
+  text-decoration: line-through; text-decoration-thickness: 2px;
+}
+ha-card.mr-host.hc .row.done .row-name,
+ha-card.mr-host.hc .row.done .row-time { opacity: 1; }
+ha-card.mr-host.hc .row.skipped {
+  opacity: 1; border-color: #f59e0b;
+  text-decoration-thickness: 2px; text-decoration-color: currentColor;
+}
+ha-card.mr-host.hc .row-status {
+  border: 2px solid currentColor; opacity: 1; font-weight: 800;
+}
+ha-card.mr-host.hc .add-btn { border-style: solid; border-width: 2px; font-weight: 800; }
+
+/* ── OVERLAY ─────────────────────────────────────────────────────────────── */
+#overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background-color: #0a0b0f;
+  background-image: radial-gradient(circle at 50% 35%, var(--mr-color-soft), transparent 65%);
+  color: #fff;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: flex-start;
+  padding: 5vh 4vw 7vh 4vw;
+  box-sizing: border-box;
+}
+.clock {
+  position: absolute; top: 3vh; left: 3vw;
+  font-size: clamp(24px, 4vw, 56px); font-weight: 700;
+  letter-spacing: 0.02em; color: rgba(255,255,255,0.85);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+.cancel-btn {
+  position: absolute; top: 3vh; right: 3vw;
+  width: clamp(48px, 6vw, 72px); height: clamp(48px, 6vw, 72px);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.10);
+  border: 2px solid rgba(255,255,255,0.35);
+  color: #fff;
+  font-size: clamp(22px, 3vw, 32px); font-weight: 700; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.name {
+  font-size: clamp(28px, 6vw, 96px); font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-top: 2vh; margin-bottom: 2vh; text-align: center;
+  color: var(--mr-color, #4ade80);
+  text-shadow: 0 4px 30px var(--mr-color-soft);
+}
+.image-wrap {
+  flex: 1 1 auto; width: 100%;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 2vh; position: relative; min-height: 0;
+}
+.image-wrap::before {
+  content: "";
+  position: absolute;
+  width: clamp(220px, 50vw, 600px);
+  height: clamp(220px, 50vw, 600px);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--mr-color-soft), transparent 65%);
+  z-index: 0;
+}
+.image { position: relative; z-index: 1; }
+.image.fluent {
+  width: clamp(240px, 50vw, 600px);
+  height: clamp(240px, 50vw, 600px);
+  background-image: var(--mr-img);
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  filter: drop-shadow(0 12px 40px var(--mr-color-soft));
+}
+.bar-wrap {
+  width: 100%; max-width: 1100px;
+  display: flex; flex-direction: column; gap: 1.4vh;
+  margin-top: auto; flex-shrink: 0;
+}
+.bar {
+  height: clamp(28px, 5vh, 56px);
+  background: rgba(255,255,255,0.10);
+  border-radius: 999px; overflow: hidden; position: relative;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+}
+.bar-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--mr-color), color-mix(in srgb, var(--mr-color) 60%, white));
+  border-radius: 999px;
+  box-shadow: 0 0 20px var(--mr-color);
+}
+.meta {
+  display: flex; justify-content: space-between;
+  font-size: clamp(16px, 2.4vw, 28px);
+  opacity: 0.88; font-variant-numeric: tabular-nums; font-weight: 600;
+}
+.next-line {
+  margin-top: 3vh;
+  font-size: clamp(14px, 2vw, 22px);
+  opacity: 0.55; text-align: center;
+}
+
+/* ── OVERLAY (HC overrides) ─────────────────────────────────────────────── */
+#overlay.hc {
+  background-color: #000;
+  background-image: none;
+}
+#overlay.hc .clock { color: #fff; text-shadow: none; font-weight: 900; }
+#overlay.hc .cancel-btn {
+  background: #fff; border: 3px solid #fff; color: #000;
+}
+#overlay.hc .name { color: #fff; text-shadow: none; font-weight: 900; }
+#overlay.hc .image-wrap::before { display: none; }
+#overlay.hc .image.fluent {
+  filter: drop-shadow(0 0 0 #fff) contrast(1.15);
+}
+#overlay.hc .bar {
+  background: #000; border: 3px solid #fff; box-shadow: none;
+}
+#overlay.hc .bar-fill { background: #ffeb3b; box-shadow: none; }
+#overlay.hc.urgent .bar-fill { background: #ff5722; }
+#overlay.hc .meta,
+#overlay.hc .next-line { opacity: 1; color: #fff; font-weight: 800; }

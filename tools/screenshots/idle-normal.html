@@ -1,0 +1,62 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>idle-normal</title>
+<link rel="stylesheet" href="_styles.css">
+<style>
+  body {
+    background: #0e0f12;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 40px;
+    box-sizing: border-box;
+  }
+  ha-card { display: block; }
+  /* Inline emoji renders so screenshots don't depend on async font loading */
+  .row-icon img { width: 26px; height: 26px; }
+  .next-hint .label { opacity: 1; }
+</style>
+</head><body>
+<ha-card class="mr-host">
+  <div class="idle-header">
+    <div class="title">🌅 Morning Routine</div>
+    <button class="edit-btn" title="Open options">⚙️</button>
+  </div>
+  <div class="next-hint"><span class="dot"></span>Up next: <strong>&nbsp;Get dressed</strong> · 07:35</div>
+  <div class="schedule">
+    <div class="row done">
+      <div class="row-icon"><img src="assets/bowl.png" alt=""></div>
+      <div class="row-name">Breakfast</div>
+      <div class="row-time">07:15</div>
+      <div class="row-status">done</div>
+      <button class="row-edit">✏️</button>
+    </div>
+    <div class="row active">
+      <div class="row-icon"><img src="assets/t-shirt.png" alt=""></div>
+      <div class="row-name">Get dressed</div>
+      <div class="row-time">07:35</div>
+      <div class="row-status">active</div>
+      <button class="row-edit">✏️</button>
+    </div>
+    <div class="row upcoming">
+      <div class="row-icon"><img src="assets/toothbrush.png" alt=""></div>
+      <div class="row-name">Brush teeth</div>
+      <div class="row-time">07:42</div>
+      <div class="row-status">upcoming</div>
+      <button class="row-edit">✏️</button>
+    </div>
+    <div class="row upcoming">
+      <div class="row-icon"><img src="assets/shoe.png" alt=""></div>
+      <div class="row-name">Shoes</div>
+      <div class="row-time">07:48</div>
+      <div class="row-status">upcoming</div>
+      <button class="row-edit">✏️</button>
+    </div>
+    <div class="row skipped">
+      <div class="row-icon"><img src="assets/coffee.png" alt=""></div>
+      <div class="row-name">Coffee (overlapped)</div>
+      <div class="row-time">07:30</div>
+      <div class="row-status">skipped</div>
+      <button class="row-edit">✏️</button>
+    </div>
+  </div>
+  <div class="schedule-foot"><button class="add-btn">＋ Add step</button></div>
+</ha-card>
+</body></html>

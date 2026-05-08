@@ -9,6 +9,9 @@ A visual morning routine for Home Assistant — designed for kids (or anyone) wh
 
 When idle, the card shows the day's full schedule with status indicators. You can add, edit and remove steps directly from the dashboard — no YAML, no settings panel hopping.
 
+![Active step — full-screen overlay](https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/overlay-normal.png)
+![Idle schedule with active step](https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/idle-normal.png)
+
 > **Why this exists:** built for my son, who has a handicap and can't read a clock. He needed a way to know "do this now, you have this much time left, then this thing next" without numbers. Sharing it openly in case it helps another family.
 
 ---
@@ -33,6 +36,22 @@ When idle, the card shows the day's full schedule with status indicators. You ca
 - **Smart overlap handling** — when two windows overlap, the later-starting step takes focus; earlier one is marked `skipped`
 - **Snooze auto-reset** — `start_now` and `snooze` only shift the current routine; the schedule snaps back to wall-clock once it finishes
 - **Single install** — Lovelace card and resource registration are bundled with the integration; no separate setup
+
+---
+
+## Screenshots
+
+**Default look — active step + idle schedule**
+
+| Active overlay | Idle schedule |
+|---|---|
+| ![Active step — Get dressed at 60% progress](https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/overlay-normal.png) | ![Idle schedule view](https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/idle-normal.png) |
+
+**High-contrast mode** (`high_contrast: true` or OS-level `prefers-contrast: more`) — pure black/white palette, colourblind-safe yellow bar, heavier borders.
+
+| Active overlay (HC) | Idle schedule (HC) |
+|---|---|
+| ![High-contrast active step](https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/overlay-hc.png) | ![High-contrast idle schedule](https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/idle-hc.png) |
 
 ---
 

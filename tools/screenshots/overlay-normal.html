@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>overlay-normal</title>
+<link rel="stylesheet" href="_styles.css">
+<style>
+  /* progress=0.6 → hue=48 (yellow-green) */
+  #overlay {
+    --mr-color: hsl(48, 80%, 55%);
+    --mr-color-soft: hsla(48, 80%, 55%, 0.32);
+    --mr-img: url("assets/t-shirt.png");
+  }
+</style>
+</head><body>
+<div id="overlay" class="shown" style="opacity:1">
+  <div class="clock">07:35</div>
+  <button class="cancel-btn" aria-label="Skip step">×</button>
+  <div class="name">Get dressed</div>
+  <div class="image-wrap"><div class="image fluent"></div></div>
+  <div class="bar-wrap">
+    <div class="bar"><div class="bar-fill" style="width:60%"></div></div>
+    <div class="meta">
+      <span>4:00 min</span>
+      <span>60%</span>
+    </div>
+  </div>
+  <div class="next-line">Next: Brush teeth · 07:42</div>
+</div>
+</body></html>
