@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.10.0";
+const VERSION = "0.10.1";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -157,8 +157,16 @@ class MorningRoutineCard extends HTMLElement {
     return 2;
   }
 
-  _isHighContrast() {
+  /** Resolution order:
+   *    1. card config — `high_contrast: true` overrides everything
+   *    2. integration-wide setting — exposed via `ui_high_contrast` on the
+   *       active_step sensor; lets users opt in once for all dashboards
+   *    3. OS-level `prefers-contrast: more` media query
+   *  Any of those true ⇒ HC mode is on. */
+  _isHighContrast(data) {
     if (this._config?.high_contrast) return true;
+    const d = data || this._readData();
+    if (d && d.ui_high_contrast === true) return true;
     try {
       return !!(window.matchMedia && window.matchMedia("(prefers-contrast: more)").matches);
     } catch (_) {
@@ -351,7 +359,7 @@ class MorningRoutineCard extends HTMLElement {
   _renderHostIdle(data, language, minimized) {
     const host = this.shadowRoot.getElementById("mr-host");
     if (!host) return;
-    host.classList.toggle("hc", this._isHighContrast());
+    host.classList.toggle("hc", this._isHighContrast(data));
     const L = LABELS[language] || LABELS.en;
     const schedule = data.schedule || [];
     const next = data.next_step || null;
@@ -592,7 +600,7 @@ class MorningRoutineCard extends HTMLElement {
     overlay.style.setProperty("--mr-color", color);
     overlay.style.setProperty("--mr-color-soft", colorSoft);
     overlay.style.setProperty("--mr-hue", `${hue - 120}deg`);
-    overlay.classList.toggle("hc", this._isHighContrast());
+    overlay.classList.toggle("hc", this._isHighContrast(data));
 
     const name = (language === "lb" ? data.name_lb : data.name) || "";
     const next = data.next_step;

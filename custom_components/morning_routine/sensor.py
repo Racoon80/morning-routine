@@ -16,6 +16,7 @@ from .const import (
     ATTR_NEXT_STEP,
     ATTR_PROGRESS,
     ATTR_TIME_LEFT,
+    CONF_HIGH_CONTRAST,
     DOMAIN,
 )
 from .coordinator import MorningRoutineCoordinator
@@ -78,6 +79,10 @@ class ActiveStepSensor(_Base):
             "schedule": data.get("schedule", []),
             "all_steps": raw_steps,
             "entry_id": self._entry.entry_id,
+            # Integration-wide UI flag — read by the Lovelace card so users can
+            # opt into high contrast once for all dashboards instead of editing
+            # every card individually.
+            "ui_high_contrast": bool(self._entry.options.get(CONF_HIGH_CONTRAST, False)),
         }
 
 

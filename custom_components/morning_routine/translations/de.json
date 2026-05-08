@@ -60,7 +60,8 @@
           "chime_enabled": "Klingel beim Schritt-Start",
           "chime_entity": "Klingel-Media-Player",
           "chime_url": "Klingel-Audio-URL",
-          "prewarn_seconds": "Voransage (Sekunden vorher, 0 = aus)"
+          "prewarn_seconds": "Voransage (Sekunden vorher, 0 = aus)",
+          "high_contrast": "Hoher Kontrast (besser für Sehbehinderte)"
         }
       }
     },

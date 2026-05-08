@@ -20,6 +20,7 @@ from .const import (
     CONF_CHIME_ENABLED,
     CONF_DAYS,
     CONF_DURATION,
+    CONF_HIGH_CONTRAST,
     CONF_IMAGE,
     CONF_LANGUAGE,
     CONF_NAME,
@@ -337,6 +338,10 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                         mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
+                vol.Optional(
+                    CONF_HIGH_CONTRAST,
+                    default=opts.get(CONF_HIGH_CONTRAST, False),
+                ): bool,
             }
         )
         return self.async_show_form(step_id="settings", data_schema=schema)

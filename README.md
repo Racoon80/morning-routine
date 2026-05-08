@@ -25,7 +25,7 @@ When idle, the card shows the day's full schedule with status indicators. You ca
 - **In-card editor** — add / edit / remove steps via a modal in the card itself, including a 72-emoji picker rendered with the same 3D PNGs (or paste any URL)
 - **Day schedule view** when idle — see today's whole routine with active / upcoming / done / skipped status
 - **Last-15-second pulse + 2 beeps** — bar, image and step name pulse; two escalating-pitch beeps fire at 10 s and 5 s remaining (synthesised via Web Audio, no audio file needed). Toggleable per-card.
-- **High-contrast mode** for visual impairments — pure black/white palette with a colourblind-safe yellow (→ orange-red) progress bar, heavier borders and bold weights. Toggle in the card editor; the OS-level `prefers-contrast: more` setting is respected automatically.
+- **High-contrast mode** for visual impairments — pure black/white palette with a colourblind-safe yellow (→ orange-red) progress bar, heavier borders and bold weights. Toggle integration-wide in **Settings → Devices & Services → Morning Routine → Configure → Sound, voice & language**, per-card in the card editor, or let it auto-activate when the OS reports `prefers-contrast: more`.
 - **60 fps smoothness** — client-side `requestAnimationFrame` loop drives the bar; server ticks every second
 - **Auto-discovery** — the card finds its sensor automatically, works in any HA language
 - **Self-closing overlay** — full-screen during a step, idle card otherwise; no Browser Mod needed
@@ -47,7 +47,13 @@ When idle, the card shows the day's full schedule with status indicators. You ca
 |---|---|
 | ![Active step — Get dressed at 60% progress](https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/overlay-normal.png) | ![Idle schedule view](https://raw.githubusercontent.com/Racoon80/morning-routine/main/images/idle-normal.png) |
 
-**High-contrast mode** (`high_contrast: true` or OS-level `prefers-contrast: more`) — pure black/white palette, colourblind-safe yellow bar, heavier borders.
+**High-contrast mode** — pure black/white palette, colourblind-safe yellow bar, heavier borders. Three ways to turn it on (any one is enough):
+
+1. **HA-wide:** Settings → Devices & Services → Morning Routine → **Configure** → *Sound, voice & language* → **High-contrast mode**
+2. **Per-card:** card editor → *High-contrast mode* checkbox (or `high_contrast: true` in YAML)
+3. **System:** OS-level `prefers-contrast: more` is auto-detected
+
+The integration setting flows to every card via the `ui_high_contrast` sensor attribute, so flipping it once covers all dashboards.
 
 | Active overlay (HC) | Idle schedule (HC) |
 |---|---|
@@ -137,8 +143,11 @@ language: de            # de | lb | en  (omit to follow HA user language)
 urgent_beep: true       # 2 beeps at 10s and 5s remaining (default true)
 beep_volume: 0.35       # 0..1, default 0.35
 high_contrast: false    # pure b/w palette + colourblind-safe yellow bar.
-                        # Off by default; the OS `prefers-contrast: more`
-                        # setting is respected even when this is false.
+                        # Per-card override; if you want it for ALL cards,
+                        # turn it on once in HA Settings → Configure →
+                        # Sound, voice & language. The OS-level
+                        # `prefers-contrast: more` setting is respected
+                        # too, even when this and the HA flag are both off.
 # active_step_entity is optional — auto-discovered via the _mr_role
 # marker attribute, so the card works regardless of UI language.
 ```

@@ -15,6 +15,7 @@ CONF_CHIME_ENABLED = "chime_enabled"
 CONF_DAYS = "days"
 CONF_LANGUAGE = "language"
 CONF_PREWARN_SECONDS = "prewarn_seconds"
+CONF_HIGH_CONTRAST = "high_contrast"
 
 DEFAULT_DURATION_MIN = 15
 DEFAULT_LANGUAGE = "de"

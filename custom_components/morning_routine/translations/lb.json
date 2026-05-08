@@ -60,7 +60,8 @@
           "chime_enabled": "Klangel beim Schrëtt-Ufank",
           "chime_entity": "Klangel-Media-Player",
           "chime_url": "Klangel-Audio-URL",
-          "prewarn_seconds": "Viraussoen (Sekonnen virdrun, 0 = aus)"
+          "prewarn_seconds": "Viraussoen (Sekonnen virdrun, 0 = aus)",
+          "high_contrast": "Héijen Kontrast (besser fir Sehbehënnerten)"
         }
       }
     },
