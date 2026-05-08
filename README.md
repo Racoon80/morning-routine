@@ -14,8 +14,10 @@ When idle, the card shows the day's full schedule with status indicators. You ca
 ## Features
 
 - **Visual-only countdown** — huge picture + colour-shifting bar, no clock-reading required
+- **Live wall clock** in the top-left of the overlay (HH:MM, updates every second)
+- **Cancel button** in the top-right of the overlay — circular ✕ that calls `skip_step` so a parent can move the routine on with one tap
 - **Microsoft Fluent 3D emojis by default** — 1500+ emoji renders served from CDN, gorgeous on any device. Twemoji and native fallbacks available
-- **In-card editor** — add / edit / remove steps via a modal in the card itself, including a 64-emoji picker (or paste any URL)
+- **In-card editor** — add / edit / remove steps via a modal in the card itself, including a 72-emoji picker rendered with the same 3D PNGs (or paste any URL)
 - **Day schedule view** when idle — see today's whole routine with active / upcoming / done / skipped status
 - **Last-15-second pulse** — bar, image and step name pulse in unison so the urgency is felt
 - **60 fps smoothness** — client-side `requestAnimationFrame` loop drives the bar; server ticks every second

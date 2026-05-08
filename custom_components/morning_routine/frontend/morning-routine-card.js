@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.8.2";
+const VERSION = "0.9.0";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -273,9 +273,16 @@ class MorningRoutineCard extends HTMLElement {
     const fill = overlay.querySelector("#fill");
     const pct = overlay.querySelector("#pct");
     const left = overlay.querySelector("#left");
+    const clock = overlay.querySelector("#clock");
     if (fill) fill.style.width = `${progress * 100}%`;
     if (pct) pct.textContent = `${Math.round(progress * 100)}%`;
     if (left) left.textContent = formatTime(Math.ceil(remainingSec), language);
+    if (clock) {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      clock.textContent = `${hh}:${mm}`;
+    }
     overlay.classList.toggle("urgent", remainingSec > 0 && remainingSec <= 15);
   }
 
@@ -503,6 +510,15 @@ class MorningRoutineCard extends HTMLElement {
     if (!overlay) {
       mount.innerHTML = OVERLAY_HTML;
       overlay = mount.querySelector("#overlay");
+      // Wire the cancel button once on first mount.
+      const cancelBtn = overlay.querySelector("#cancel-overlay");
+      if (cancelBtn) {
+        cancelBtn.addEventListener("click", () => {
+          if (!this._hass) return;
+          this._hass.callService("morning_routine", "skip_step", {})
+            .catch(() => {});
+        });
+      }
     }
 
     const progress = Math.max(0, Math.min(1, data.progress || 0));
@@ -521,6 +537,11 @@ class MorningRoutineCard extends HTMLElement {
     overlay.querySelector("#fill").style.width = `${progress * 100}%`;
     overlay.querySelector("#pct").textContent = `${Math.round(progress * 100)}%`;
     overlay.querySelector("#left").textContent = formatTime(timeLeft, language);
+    const clockEl = overlay.querySelector("#clock");
+    if (clockEl) {
+      const now = new Date();
+      clockEl.textContent = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+    }
 
     const nextEl = overlay.querySelector("#next");
     if (next) {
@@ -949,6 +970,39 @@ const OVERLAY_HTML = `
     box-sizing: border-box;
   }
   #overlay.shown { opacity: 1; }
+  .clock {
+    position: absolute;
+    top: 3vh; left: 3vw;
+    font-size: clamp(24px, 4vw, 56px);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.85);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+  }
+  .cancel-btn {
+    position: absolute;
+    top: 3vh; right: 3vw;
+    width: clamp(48px, 6vw, 72px);
+    height: clamp(48px, 6vw, 72px);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.10);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    color: #fff;
+    font-size: clamp(22px, 3vw, 32px);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+  .cancel-btn:active { transform: scale(0.92); }
   .name {
     font-size: clamp(28px, 6vw, 96px);
     font-weight: 800;
@@ -1102,6 +1156,8 @@ const OVERLAY_HTML = `
   }
 </style>
 <div id="overlay">
+  <div class="clock" id="clock"></div>
+  <button class="cancel-btn" id="cancel-overlay" title="Skip step" aria-label="Skip step">×</button>
   <div class="name"></div>
   <div class="image-wrap"><div class="image"></div></div>
   <div class="bar-wrap">
