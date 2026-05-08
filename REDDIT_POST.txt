@@ -1,0 +1,62 @@
+Title (pick one):
+- I built a Home Assistant card so my non-reading son knows when to brush, dress, leave for school
+- Visual morning routine for HA — full-screen image + green→red countdown for kids who can't read a clock
+- Open-sourced: Morning Routine card for Home Assistant (built for my son who can't read a clock)
+
+Suggested subreddits:
+- r/homeassistant (best fit)
+- r/homeautomation
+- r/selfhosted
+- r/SmartHomeIdeas
+- r/HomeAssistant_DE (German variant if you want)
+
+---
+
+Body:
+
+My son has a handicap and can't read a clock yet. Every morning was a series of "is it time for X?" questions. I wanted a Home Assistant dashboard that just shows him the current activity and how much time is left — no numbers, no clock-reading required.
+
+After a couple of evenings hacking, here's the result:
+
+https://github.com/Racoon80/morning-routine
+
+**What it does**
+
+When a step is active (say, 07:30–07:45 Coffee), the dashboard goes full-screen with:
+- a huge 3D emoji of the activity (Microsoft Fluent Emoji)
+- a single horizontal countdown bar that smoothly shifts from green to red over the duration
+- the step name in the same colour
+- a wall clock top-left, a circular ✕ "skip step" button top-right
+- two short beeps at 10 s and 5 s remaining (escalating pitch, synthesised — no audio file)
+- in the last 15 s, the bar, image and name pulse together so the urgency is felt
+
+When no step is active, the card shows a tidy idle view with the day's full schedule and a status badge per row (active / upcoming / done / skipped). Tap the ✏️ pencil on any row to edit, ➕ at the bottom to add — full modal with a 72-emoji picker, time, duration, days, all without leaving the dashboard.
+
+**Things I'm proud of**
+
+- Single install via HACS — the Lovelace card is bundled with the integration, auto-registered as a Lovelace resource. No "now go register this URL manually" step.
+- Auto-discovery — the card finds its sensor by a marker attribute, so it works in any HA UI language without you having to type entity IDs.
+- Smooth animation — sensor updates per second, but the bar is driven client-side at 60 fps via requestAnimationFrame, so it never jumps.
+- Overlap handling — if two step windows overlap, the later-starting one takes focus (more recent = more relevant), and the earlier one shows as "skipped" in the schedule. Better than the alternative of one step blocking the next.
+- Snooze auto-reset — a `start_now` test or a `snooze` only shifts the current routine; the schedule snaps back to wall-clock once the (shifted) routine finishes. No "wait, why is Coffee firing at 09:42?" the next morning.
+- DE / LB / EN UI.
+
+**Install**
+
+HACS → Custom repositories → add `https://github.com/Racoon80/morning-routine` as Integration → install → restart HA → add the integration → drop the card on a dashboard. There's also a one-click "Open in HACS" badge in the README.
+
+MIT licensed. Issues and PRs welcome — the whole thing is ~1500 lines of vanilla JS Web Component plus ~500 lines of Python, no build step.
+
+If this helps your kid (or anyone else), I'd love to hear it.
+
+---
+
+Optional shorter version (< 200 words) for r/HomeAssistant if they prefer brevity:
+
+My son can't read a clock yet, so every morning was "is it time for X?" times ten. So I built a Home Assistant integration that takes over the dashboard full-screen for each step in the routine: huge 3D emoji of what to do (Microsoft Fluent Emoji), a single bar that shifts green → red over the duration, a wall clock top-left, a skip button top-right, escalating beeps at 10 s and 5 s, plus pulsing animation in the last 15 s.
+
+When idle, it shows the day's whole schedule with active / upcoming / done / skipped badges. You can add and edit steps from the card itself with a built-in modal — no YAML, no settings panel hopping.
+
+Bundled card auto-loads via HACS, works in any HA UI language, snooze auto-resets so testing doesn't shift tomorrow's schedule. MIT.
+
+https://github.com/Racoon80/morning-routine

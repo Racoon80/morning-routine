@@ -9,6 +9,8 @@ A visual morning routine for Home Assistant — designed for kids (or anyone) wh
 
 When idle, the card shows the day's full schedule with status indicators. You can add, edit and remove steps directly from the dashboard — no YAML, no settings panel hopping.
 
+> **Why this exists:** built for my son, who has a handicap and can't read a clock. He needed a way to know "do this now, you have this much time left, then this thing next" without numbers. Sharing it openly in case it helps another family.
+
 ---
 
 ## Features
@@ -190,9 +192,24 @@ The Fluent emoji map (`frontend/fluent_map.json`, ~95 KB) is generated from [mic
 
 ---
 
+## Roadmap / ideas
+
+Not promised, just open. PRs welcome.
+
+- Drag-and-drop reorder of steps in the modal
+- Per-step custom sound (bundled or URL)
+- Reward screen at the end of the routine ("3 stars!")
+- Donetick / chore-tracker integration on `routine_finished`
+- Lottie-based animated step icons
+
+## Contributing
+
+Issues and PRs are welcome. The codebase is tiny (~1500 lines JS, ~500 lines Python, no build step) and the "feedback → ship" loop is fast — it took ~3 hours from "an idea for my son" to v0.9 with most of these features.
+
 ## Credits
 
 - Built for a kid in Kayl 🇱🇺 who needed a clock he could understand.
 - 3D emoji renders by [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (MIT).
 - Twemoji fallback by [jdecked/twemoji](https://github.com/jdecked/twemoji) (CC-BY 4.0).
 - Hosted by [jsDelivr](https://www.jsdelivr.com/).
+- Initial scaffolding and iterative development by [Claude Code](https://claude.com/claude-code).
