@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.9.0";
+const VERSION = "0.9.1";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -93,6 +93,8 @@ class MorningRoutineCard extends HTMLElement {
     // Client-side smooth animation state
     this._anim = null;          // rAF handle
     this._stepAnchor = null;    // { stepKey, perfNow, serverTimeLeft, duration }
+    this._beeped = new Set();   // thresholds already played for current step
+    this._audioCtx = null;
   }
 
   disconnectedCallback() {
@@ -116,6 +118,8 @@ class MorningRoutineCard extends HTMLElement {
       language: null,
       active_step_entity: null,
       emoji_style: "fluent",   // fluent | twemoji | native
+      urgent_beep: true,        // 3 beeps in last 15s (15/10/5)
+      beep_volume: 0.35,        // 0..1
       ...(config || {}),
     };
     if (this._config.emoji_style === "fluent") {
@@ -238,6 +242,11 @@ class MorningRoutineCard extends HTMLElement {
         serverTimeLeft: tl,
         duration: totalSec,
       };
+      // New step → reset beep tracking. If anchor only resynced (same step),
+      // keep beeped state so we don't re-trigger for the same threshold.
+      if (!anchor || anchor.stepKey !== stepKey) {
+        this._beeped = new Set();
+      }
     }
 
     if (this._anim) cancelAnimationFrame(this._anim);
@@ -248,9 +257,48 @@ class MorningRoutineCard extends HTMLElement {
       const remaining = Math.max(0, a.serverTimeLeft - elapsed);
       const prog = a.duration > 0 ? Math.max(0, Math.min(1, 1 - remaining / a.duration)) : 1;
       this._paintProgress(prog, remaining, language);
+      this._maybeBeep(remaining);
       this._anim = requestAnimationFrame(tick);
     };
     this._anim = requestAnimationFrame(tick);
+  }
+
+  /** 3 short beeps in the last 15 seconds: at 15, 10, 5 seconds remaining.
+   *  Synthesised via Web Audio — no asset to host, works offline. */
+  _maybeBeep(remainingSec) {
+    if (this._config?.urgent_beep === false) return;
+    const sec = Math.ceil(remainingSec);
+    if (sec !== 15 && sec !== 10 && sec !== 5) return;
+    if (this._beeped.has(sec)) return;
+    this._beeped.add(sec);
+    // Slight pitch increase per beep so they feel escalating: 660 → 880 → 1100 Hz.
+    const freq = sec === 15 ? 660 : sec === 10 ? 880 : 1100;
+    this._playBeep(freq);
+  }
+
+  _playBeep(freq) {
+    try {
+      if (!this._audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        this._audioCtx = new Ctx();
+      }
+      const ctx = this._audioCtx;
+      // Resume if browser suspended it (autoplay policy).
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      const v = Math.max(0, Math.min(1, this._config?.beep_volume ?? 0.35));
+      const t0 = ctx.currentTime;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(v, t0 + 0.02);
+      gain.gain.linearRampToValueAtTime(0, t0 + 0.22);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.25);
+    } catch (_) { /* silently swallow autoplay/permission errors */ }
   }
 
   _stopAnimLoop() {
@@ -683,6 +731,13 @@ class MorningRoutineCardEditor extends HTMLElement {
         <label>Language override</label>
         <input id="lang" value="${this._config.language || ""}" placeholder="de | lb | en (blank = HA default)" />
       </div>
+      <div class="row">
+        <label><input type="checkbox" id="urgent-beep" ${this._config.urgent_beep === false ? "" : "checked"} /> Beep 3× in last 15 seconds (15s, 10s, 5s)</label>
+      </div>
+      <div class="row">
+        <label>Beep volume (0–1)</label>
+        <input id="beep-volume" type="number" min="0" max="1" step="0.05" value="${this._config.beep_volume ?? 0.35}" />
+      </div>
     `;
     const fire = () => {
       const entityVal = this.shadowRoot.getElementById("entity").value.trim();
@@ -694,6 +749,8 @@ class MorningRoutineCardEditor extends HTMLElement {
             emoji_style: this.shadowRoot.getElementById("emoji-style").value,
             tint_mode: this.shadowRoot.getElementById("tint").value,
             language: this.shadowRoot.getElementById("lang").value || null,
+            urgent_beep: this.shadowRoot.getElementById("urgent-beep").checked,
+            beep_volume: parseFloat(this.shadowRoot.getElementById("beep-volume").value) || 0.35,
           },
         },
         bubbles: true, composed: true,
@@ -704,6 +761,8 @@ class MorningRoutineCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("emoji-style").addEventListener("change", fire);
     this.shadowRoot.getElementById("tint").addEventListener("change", fire);
     this.shadowRoot.getElementById("lang").addEventListener("change", fire);
+    this.shadowRoot.getElementById("urgent-beep").addEventListener("change", fire);
+    this.shadowRoot.getElementById("beep-volume").addEventListener("change", fire);
   }
 }
 
