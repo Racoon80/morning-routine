@@ -13,6 +13,7 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 
 from .const import (
     DOMAIN,
@@ -33,11 +34,12 @@ FRONTEND_FS_PATH = os.path.join(os.path.dirname(__file__), "frontend")
 _FRONTEND_FLAG = f"{DOMAIN}_frontend_registered"
 
 
-def _read_version() -> str:
+async def _read_version(hass: HomeAssistant) -> str:
+    # HA's integration loader caches manifest.json off the event loop, so we
+    # avoid sync open() which is blocked since HA 2024.x.
     try:
-        import json
-        with open(os.path.join(os.path.dirname(__file__), "manifest.json")) as f:
-            return json.load(f).get("version", "0")
+        integration = await async_get_integration(hass, DOMAIN)
+        return integration.version or "0"
     except Exception:
         return "0"
 
@@ -55,7 +57,7 @@ async def _register_frontend(hass: HomeAssistant) -> None:
         return
     hass.data[_FRONTEND_FLAG] = True
 
-    version = _read_version()
+    version = await _read_version(hass)
     card_url = f"{FRONTEND_BASE}/morning-routine-card.js?v={version}"
 
     await hass.http.async_register_static_paths(

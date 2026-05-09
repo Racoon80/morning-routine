@@ -67,6 +67,10 @@ The integration setting flows to every card via the `ui_high_contrast` sensor at
 
 ## Install
 
+### Requirements
+
+- Home Assistant **2024.6** or newer (uses the modern async loader for manifest reads — older versions will still work but log a deprecation warning).
+
 ### Via HACS (recommended)
 
 1. HACS → Integrations → ⋮ → **Custom repositories**
