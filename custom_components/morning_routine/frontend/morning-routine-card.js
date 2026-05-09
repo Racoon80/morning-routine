@@ -381,7 +381,7 @@ class MorningRoutineCard extends HTMLElement {
 
     // Build schedule rows with edit pencils
     const rows = schedule.length ? schedule.map((s) => {
-      const statusClass = s.status; // active | upcoming | done
+      const statusClass = s.status; // active | upcoming | done | skipped | inactive
       const name = (language === "lb" ? s.name_lb : s.name) || s.name;
       const icon = this._iconHTML(s.image, "row");
       return `
@@ -833,7 +833,7 @@ const LABELS = {
     fieldImage: "Bild / Emoji",
     fieldDays: "Aktive Tage",
     pickEmoji: "Emoji wählen oder URL eingeben",
-    status: { active: "läuft", upcoming: "wartet", done: "fertig", skipped: "übersprungen" },
+    status: { active: "läuft", upcoming: "wartet", done: "fertig", skipped: "übersprungen", inactive: "frei" },
     dayShort: ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
   },
   lb: {
@@ -856,7 +856,7 @@ const LABELS = {
     fieldImage: "Bild / Emoji",
     fieldDays: "Aktiv Deeg",
     pickEmoji: "Emoji wielen oder URL erafügen",
-    status: { active: "leeft", upcoming: "waart", done: "fäerdeg", skipped: "iwwersprongen" },
+    status: { active: "leeft", upcoming: "waart", done: "fäerdeg", skipped: "iwwersprongen", inactive: "fräi" },
     dayShort: ["Méi", "Dën", "Mët", "Don", "Fre", "Sam", "Son"],
   },
   en: {
@@ -879,7 +879,7 @@ const LABELS = {
     fieldImage: "Picture / emoji",
     fieldDays: "Active days",
     pickEmoji: "Pick an emoji or paste a URL",
-    status: { active: "active", upcoming: "upcoming", done: "done", skipped: "skipped" },
+    status: { active: "active", upcoming: "upcoming", done: "done", skipped: "skipped", inactive: "off today" },
     dayShort: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   },
 };
@@ -1004,6 +1004,15 @@ const BASE_CSS = `
   .row.skipped .row-status {
     background: color-mix(in srgb, #f59e0b 20%, transparent);
     color: #f59e0b;
+    opacity: 1;
+  }
+  /* Step is configured but does not run today (e.g. weekend day-filter).
+     Kept visible so the schedule remains a stable reference, dimmed to
+     signal "not for today". No strikethrough so it doesn't look like a
+     historic skip. */
+  .row.inactive { opacity: 0.4; }
+  .row.inactive .row-status {
+    background: color-mix(in srgb, currentColor 12%, transparent);
     opacity: 1;
   }
   .row.empty { opacity: 0.6; font-size: 13px; padding: 14px; justify-content: center; display: flex; }

@@ -219,7 +219,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         return in_window[0][1]
 
     def _today_schedule(self, now: datetime) -> list[dict]:
-        """Return all steps that run today, with status flags for the card.
+        """Return all configured steps with status flags for the card.
 
         Status:
           done     — step's end time is in the past
@@ -227,20 +227,24 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
           skipped  — step's window contains 'now' but a later-starting step
                      supersedes it (overlap handling)
           upcoming — step's start time is in the future
+          inactive — step is configured but does not run today (e.g. weekend
+                     and the step is Mon–Fri only). Kept in the schedule so
+                     the card remains useful on off-days as a reference.
         """
         active_idx = self._compute_active(now)
         sched: list[dict] = []
         for idx, step in enumerate(self._steps):
             if not step.runs_today(now):
-                continue
-            start_dt = step.start_dt(now)
-            end_dt = start_dt + step.duration
-            if now >= end_dt:
-                status = "done"
-            elif start_dt <= now < end_dt:
-                status = "active" if idx == active_idx else "skipped"
+                status = "inactive"
             else:
-                status = "upcoming"
+                start_dt = step.start_dt(now)
+                end_dt = start_dt + step.duration
+                if now >= end_dt:
+                    status = "done"
+                elif start_dt <= now < end_dt:
+                    status = "active" if idx == active_idx else "skipped"
+                else:
+                    status = "upcoming"
             sched.append({
                 "index": idx,
                 "name": step.name,
