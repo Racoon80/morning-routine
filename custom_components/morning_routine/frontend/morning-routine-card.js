@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.10.2";
+const VERSION = "0.10.6";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -1148,6 +1148,7 @@ const OVERLAY_HTML = `
   }
   .cancel-btn {
     position: absolute;
+    z-index: 10;            /* above the (z-index:1, oversized) image box so taps land on the button */
     top: 3vh; right: 3vw;
     width: clamp(48px, 6vw, 72px);
     height: clamp(48px, 6vw, 72px);
@@ -1182,6 +1183,7 @@ const OVERLAY_HTML = `
   .image-wrap {
     flex: 1 1 auto;
     width: 100%;
+    pointer-events: none;   /* purely decorative — must never intercept the cancel-button tap */
     display: flex;
     align-items: center;
     justify-content: center;
