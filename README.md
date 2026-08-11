@@ -252,3 +252,11 @@ Issues and PRs are welcome. The codebase is tiny (~1500 lines JS, ~500 lines Pyt
 - Twemoji fallback by [jdecked/twemoji](https://github.com/jdecked/twemoji) (CC-BY 4.0).
 - Hosted by [jsDelivr](https://www.jsdelivr.com/).
 - Initial scaffolding and iterative development by [Claude Code](https://claude.com/claude-code).
+
+---
+
+## ☕ Support
+
+If this project is useful to you, you can buy me a coffee:
+
+<a href="https://www.buymeacoffee.com/dv7g" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-orange.png" alt="Buy me a coffee" height="41" width="174"></a>
