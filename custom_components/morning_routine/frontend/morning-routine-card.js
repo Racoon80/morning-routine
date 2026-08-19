@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.11.2";
+const VERSION = "0.11.3";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -1816,8 +1816,24 @@ const HOLIDAY_MODAL_HTML = `
 ` + MODAL_CSS;
 
 
-customElements.define("morning-routine-card", MorningRoutineCard);
-customElements.define("morning-routine-card-editor", MorningRoutineCardEditor);
+// The card can be served twice on one page — the integration registers it as
+// a Lovelace resource AND injects it via add_extra_js_url, and a leftover
+// resource from a manual install adds a third URL. Different URLs mean the
+// module is evaluated more than once, and an unguarded define() throws
+// NotSupportedError, which aborts that copy and surfaces as a card error on
+// every refresh. Defining only once turns that into a harmless no-op.
+const alreadyDefined = !!customElements.get("morning-routine-card");
+if (alreadyDefined) {
+  console.warn(
+    `[morning-routine-card] already registered (this copy: v${VERSION}). ` +
+    "A duplicate entry under Settings → Dashboards → Resources is the usual cause."
+  );
+} else {
+  customElements.define("morning-routine-card", MorningRoutineCard);
+}
+if (!customElements.get("morning-routine-card-editor")) {
+  customElements.define("morning-routine-card-editor", MorningRoutineCardEditor);
+}
 
 window.customCards = window.customCards || [];
 if (!window.customCards.find((c) => c.type === "morning-routine-card")) {
