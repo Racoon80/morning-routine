@@ -7,17 +7,21 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import date
 
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.loader import async_get_integration
 
 from .const import (
+    CONF_HOLIDAY_RANGES,
     DOMAIN,
     SERVICE_RESET_SNOOZE,
+    SERVICE_SET_HOLIDAY,
     SERVICE_SET_STEPS,
     SERVICE_SKIP_STEP,
     SERVICE_SNOOZE,
@@ -154,6 +158,43 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for c in hass.data[DOMAIN].values():
             await c.async_reset_snooze()
 
+    async def _set_holiday(call) -> None:
+        """Set or clear the manual holiday period. Used by the card's dialog.
+
+        Same rules as the options form: one date on its own is a single day,
+        reversed dates are swapped, and no dates at all clears the period.
+        """
+        def _read(value) -> date | None:
+            if value in (None, ""):
+                return None
+            if isinstance(value, date):
+                return value
+            return date.fromisoformat(str(value)[:10])
+
+        try:
+            start = _read(call.data.get("start"))
+            end = _read(call.data.get("end"))
+        except (TypeError, ValueError) as err:
+            raise ServiceValidationError(
+                "start and end must be dates in YYYY-MM-DD form (or empty)"
+            ) from err
+
+        ranges: list[dict[str, str]] = []
+        if start or end:
+            first, last = start or end, end or start
+            if first > last:
+                first, last = last, first
+            ranges = [{"start": first.isoformat(), "end": last.isoformat()}]
+
+        for eid in list(hass.data[DOMAIN].keys()):
+            target_entry = hass.config_entries.async_get_entry(eid)
+            if target_entry is None:
+                continue
+            hass.config_entries.async_update_entry(
+                target_entry,
+                options={**target_entry.options, CONF_HOLIDAY_RANGES: ranges},
+            )
+
     async def _set_steps(call) -> None:
         """Replace the entire step list. Used by the in-card editor."""
         from .const import CONF_STEPS, DAYS_ALL, DEFAULT_HOLIDAY_MODE, HOLIDAY_MODES
@@ -212,6 +253,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.services.async_register(DOMAIN, SERVICE_START_NOW, _start_now)
         hass.services.async_register(DOMAIN, SERVICE_SNOOZE, _snooze)
         hass.services.async_register(DOMAIN, SERVICE_SET_STEPS, _set_steps)
+        hass.services.async_register(DOMAIN, SERVICE_SET_HOLIDAY, _set_holiday)
         hass.services.async_register(DOMAIN, SERVICE_RESET_SNOOZE, _reset_snooze)
 
     entry.async_on_unload(entry.add_update_listener(_async_reload))
@@ -229,6 +271,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator: MorningRoutineCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         await coordinator.async_stop()
     if not hass.data[DOMAIN]:
-        for svc in (SERVICE_SKIP_STEP, SERVICE_START_NOW, SERVICE_SNOOZE, SERVICE_SET_STEPS, SERVICE_RESET_SNOOZE):
+        for svc in (
+            SERVICE_SKIP_STEP,
+            SERVICE_START_NOW,
+            SERVICE_SNOOZE,
+            SERVICE_SET_STEPS,
+            SERVICE_SET_HOLIDAY,
+            SERVICE_RESET_SNOOZE,
+        ):
             hass.services.async_remove(DOMAIN, svc)
     return unload_ok

@@ -58,3 +58,23 @@ set_steps:
           holiday_mode: skip_holiday
       selector:
         object: {}
+
+set_holiday:
+  name: Set holiday period
+  description: >
+    Set or clear the manual holiday period. One date on its own means that
+    single day, reversed dates are swapped, and calling it without any date
+    clears the period. Used by the holiday dialog in the card.
+  fields:
+    start:
+      name: Holiday from
+      description: First day of the holiday (YYYY-MM-DD). Leave empty to clear.
+      example: "2026-08-01"
+      selector:
+        text:
+    end:
+      name: Holiday until
+      description: Last day of the holiday, included (YYYY-MM-DD).
+      example: "2026-08-31"
+      selector:
+        text:

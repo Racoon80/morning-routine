@@ -108,7 +108,7 @@ Settings → Devices & Services → **Morning Routine** → **Configure**
 
 Menu options:
 - Add a step / Edit a step / Remove a step
-- **Holidays** — a holiday period (from / until) + optional holiday entity (see below)
+- **Holidays** — a holiday period (from / until) + optional holiday entity (see below) — or set the period straight from the card's 🏖️ button
 - **Sound, voice & language** — TTS service/target, chime, language, pre-warn seconds
 
 ---
@@ -117,9 +117,11 @@ Menu options:
 
 School holidays shouldn't nag the kid about the bus — but the evening shower still has to happen. So holiday behaviour is set **per step**.
 
-**1. Tell the integration when it's a holiday** — Configure → **Holidays**. Two independent sources, either one is enough:
+**1. Tell the integration when it's a holiday** — two independent sources, either one is enough:
 
 - **A holiday period you set by hand** — two date pickers, *Holiday from* and *Holiday until* (the last day counts as holiday). Leave both empty when there is no holiday; fill in only one of them to mark a single day.
+
+  Set it either from the **🏖️ button in the card** (next to the ⚙️) — handy on a wall tablet — or under Configure → **Holidays**. Both write the same period. The button lights up amber while a holiday is running, and **the period switches itself off after its last day**: it is cleared automatically, so nothing stays muted once the holidays are over.
 
 - **Holiday switch / calendar** — any entity that is `on` while it's a day off: an `input_boolean` you flip for a sick day, a `binary_sensor`, a `schedule`, or a `calendar`.
 
@@ -203,6 +205,7 @@ The card displays a compact daily schedule when no step is active and takes over
 | `morning_routine.snooze` | Push the routine forward by `minutes` minutes (default 5). Auto-clears when finished. |
 | `morning_routine.reset_snooze` | Manually clear any `start_now` / `snooze` time-shift and snap back to wall-clock. |
 | `morning_routine.set_steps` | Replace the entire step list. Used internally by the in-card editor; you can call it from automations to switch between routine variants. |
+| `morning_routine.set_holiday` | Set the holiday period (`start`, `end` as `YYYY-MM-DD`) or clear it by calling it without dates. Used by the card's 🏖️ dialog. |
 
 ---
 
@@ -223,7 +226,7 @@ Wire these to lights, music, blinds, anything.
 
 | Entity | State | Useful attributes |
 |---|---|---|
-| `sensor.<active_step>` | step name (or `unknown`) | `image`, `progress`, `time_left`, `next_step`, `schedule`, `holiday`, `all_steps`, `_mr_role` |
+| `sensor.<active_step>` | step name (or `unknown`) | `image`, `progress`, `time_left`, `next_step`, `schedule`, `holiday`, `holiday_period`, `all_steps`, `_mr_role` |
 | `sensor.<progress>` | 0–100 % | — |
 | `sensor.<time_left>` | seconds | — |
 

@@ -18,6 +18,7 @@ from .const import (
     ATTR_PROGRESS,
     ATTR_TIME_LEFT,
     CONF_HIGH_CONTRAST,
+    CONF_HOLIDAY_RANGES,
     DOMAIN,
 )
 from .coordinator import MorningRoutineCoordinator
@@ -82,6 +83,9 @@ class ActiveStepSensor(_Base):
             # entity). The card uses it for the badge; automations can use it
             # as a plain template condition.
             ATTR_HOLIDAY: bool(data.get("holiday", False)),
+            # The manually set holiday period ({"start", "end"} or None), so
+            # the card's holiday dialog can pre-fill its two date fields.
+            "holiday_period": self._holiday_period(),
             "all_steps": raw_steps,
             "entry_id": self._entry.entry_id,
             # Integration-wide UI flag — read by the Lovelace card so users can
@@ -89,6 +93,14 @@ class ActiveStepSensor(_Base):
             # every card individually.
             "ui_high_contrast": bool(self._entry.options.get(CONF_HIGH_CONTRAST, False)),
         }
+
+
+    def _holiday_period(self) -> dict[str, str] | None:
+        ranges = self._entry.options.get(CONF_HOLIDAY_RANGES) or []
+        for rng in ranges:
+            if isinstance(rng, dict) and rng.get("start"):
+                return {"start": rng["start"], "end": rng.get("end", rng["start"])}
+        return None
 
 
 class ProgressSensor(_Base):

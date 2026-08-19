@@ -51,6 +51,7 @@ SERVICE_START_NOW = "start_now"
 SERVICE_SNOOZE = "snooze"
 SERVICE_SET_STEPS = "set_steps"
 SERVICE_RESET_SNOOZE = "reset_snooze"
+SERVICE_SET_HOLIDAY = "set_holiday"
 
 ATTR_ACTIVE_STEP = "active_step"
 ATTR_PROGRESS = "progress"

@@ -183,6 +183,36 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                 return True
         return False
 
+    async def _maybe_expire_holiday(self) -> None:
+        """Drop a manual holiday period once its last day has passed.
+
+        The date check alone already stops an old period from being active,
+        but leaving it stored means the options form and the card's holiday
+        dialog keep showing dates that read as "holiday still set" weeks
+        later. Unreadable entries are dropped in the same pass.
+        """
+        ranges = self.entry.options.get(CONF_HOLIDAY_RANGES) or []
+        if not ranges:
+            return
+        today = dt_util.now().date()
+        kept: list[dict] = []
+        for rng in ranges:
+            if not isinstance(rng, dict):
+                continue
+            try:
+                end = date.fromisoformat(str(rng.get("end", rng.get("start"))))
+            except (TypeError, ValueError):
+                continue
+            if end >= today:
+                kept.append(rng)
+        if len(kept) == len(ranges):
+            return
+        _LOGGER.info("Holiday period is over — clearing it")
+        self.hass.config_entries.async_update_entry(
+            self.entry,
+            options={**self.entry.options, CONF_HOLIDAY_RANGES: kept},
+        )
+
     # ── tick ─────────────────────────────────────────────────────────────────
     @callback
     def _tick(self, _now: datetime) -> None:
@@ -201,6 +231,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict[str, Any]:
         now = dt_util.now() - self._snooze_offset
         self._reload_steps()
+        await self._maybe_expire_holiday()
         is_holiday = self._is_holiday(now)
 
         new_idx = self._compute_active(now, is_holiday)

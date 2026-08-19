@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.11.1";
+const VERSION = "0.11.2";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -403,7 +403,10 @@ class MorningRoutineCard extends HTMLElement {
       <div class="idle">
         <div class="idle-header">
           <div class="title">🌅 ${L.title}${data.holiday ? `<span class="holiday-badge">🏖️ ${L.holidayBadge}</span>` : ""}</div>
-          <button class="edit-btn" id="open-options-btn" title="${L.optionsLabel}">⚙️</button>
+          <div class="idle-actions">
+            <button class="edit-btn ${data.holiday ? "on" : ""}" id="holiday-btn" title="${L.holidayBtn}">🏖️</button>
+            <button class="edit-btn" id="open-options-btn" title="${L.optionsLabel}">⚙️</button>
+          </div>
         </div>
         ${nextHint}
         <div class="schedule">${rows}</div>
@@ -414,6 +417,8 @@ class MorningRoutineCard extends HTMLElement {
     `;
     const optBtn = this.shadowRoot.getElementById("open-options-btn");
     if (optBtn) optBtn.addEventListener("click", () => this._openOptions(data));
+    const holBtn = this.shadowRoot.getElementById("holiday-btn");
+    if (holBtn) holBtn.addEventListener("click", () => this._openHolidayModal(data, language));
     const addBtn = this.shadowRoot.getElementById("add-btn");
     if (addBtn) addBtn.addEventListener("click", () => this._openModal(null, data, language));
     this.shadowRoot.querySelectorAll(".row-edit").forEach((b) => {
@@ -435,17 +440,8 @@ class MorningRoutineCard extends HTMLElement {
       ? { ...editing }
       : { name: "", name_lb: "", start: "07:30", duration: 15, image: "☕", days: ["mon","tue","wed","thu","fri"], holiday_mode: "always" };
 
-    let modal = this.shadowRoot.getElementById("mr-modal");
-    if (modal) modal.remove();
-    // Old modal-related styles too — clean before re-inject
-    this.shadowRoot.querySelectorAll("style[data-mr-modal]").forEach((s) => s.remove());
-    const tpl = document.createElement("template");
-    tpl.innerHTML = MODAL_HTML;
-    Array.from(tpl.content.children).forEach((node) => {
-      if (node.tagName === "STYLE") node.setAttribute("data-mr-modal", "1");
-      this.shadowRoot.appendChild(node);
-    });
-    modal = this.shadowRoot.getElementById("mr-modal");
+    this._injectModal(MODAL_HTML);
+    const modal = this.shadowRoot.getElementById("mr-modal");
 
     // Populate form
     const $ = (id) => modal.querySelector(`#${id}`);
@@ -555,6 +551,64 @@ class MorningRoutineCard extends HTMLElement {
     });
 
     modal.showModal();
+  }
+
+  // ── holiday dialog ────────────────────────────────────────────────────────
+  _injectModal(html) {
+    // Both dialogs share one stylesheet, so clear whichever is mounted before
+    // injecting — otherwise a leftover dialog would sit there unstyled.
+    ["mr-modal", "mr-holiday-modal"].forEach((id) => {
+      const old = this.shadowRoot.getElementById(id);
+      if (old) old.remove();
+    });
+    this.shadowRoot.querySelectorAll("style[data-mr-modal]").forEach((s) => s.remove());
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    Array.from(tpl.content.children).forEach((node) => {
+      if (node.tagName === "STYLE") node.setAttribute("data-mr-modal", "1");
+      this.shadowRoot.appendChild(node);
+    });
+  }
+
+  _openHolidayModal(data, language) {
+    const L = LABELS[language] || LABELS.en;
+    this._injectModal(HOLIDAY_MODAL_HTML);
+    const modal = this.shadowRoot.getElementById("mr-holiday-modal");
+    const $ = (id) => modal.querySelector(`#${id}`);
+
+    const period = data.holiday_period || {};
+    $("h-from").value = period.start || "";
+    $("h-to").value = period.end || "";
+
+    $("h-title").textContent = L.holidayTitle;
+    $("h-lbl-from").textContent = L.holidayFrom;
+    $("h-lbl-to").textContent = L.holidayTo;
+    $("h-hint").textContent = L.holidayHint;
+    $("h-clear").innerHTML = "🗑️ " + L.holidayClear;
+    $("h-cancel").textContent = L.cancel;
+    $("h-save").textContent = L.save;
+
+    const close = () => modal.close();
+    $("h-close").addEventListener("click", close);
+    $("h-cancel").addEventListener("click", close);
+    $("h-backdrop").addEventListener("click", close);
+    $("h-clear").addEventListener("click", async () => {
+      await this._callSetHoliday("", "");
+      close();
+    });
+    $("h-save").addEventListener("click", async () => {
+      await this._callSetHoliday($("h-from").value, $("h-to").value);
+      close();
+    });
+    modal.showModal();
+  }
+
+  async _callSetHoliday(start, end) {
+    try {
+      await this._hass.callService("morning_routine", "set_holiday", { start, end });
+    } catch (e) {
+      alert("Could not save the holiday period: " + (e.message || e));
+    }
   }
 
   async _fetchSteps() {
@@ -851,6 +905,12 @@ const LABELS = {
     fieldHoliday: "In den Ferien",
     holidayModes: { always: "läuft auch", skip_holiday: "pausiert", only_holiday: "nur Ferien" },
     holidayBadge: "Ferien",
+    holidayBtn: "Ferien setzen",
+    holidayTitle: "Ferien",
+    holidayFrom: "Ferien von",
+    holidayTo: "Ferien bis",
+    holidayHint: "Beide Felder leer = keine Ferien. Nur ein Datum = dieser eine Tag. Der Zeitraum schaltet sich nach dem letzten Tag von selbst ab.",
+    holidayClear: "Löschen",
     pickEmoji: "Emoji wählen oder URL eingeben",
     status: { active: "läuft", upcoming: "wartet", done: "fertig", skipped: "übersprungen", inactive: "frei", holiday: "Ferien" },
     dayShort: ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
@@ -877,6 +937,12 @@ const LABELS = {
     fieldHoliday: "An der Vakanz",
     holidayModes: { always: "leeft och", skip_holiday: "Paus", only_holiday: "nëmme Vakanz" },
     holidayBadge: "Vakanz",
+    holidayBtn: "Vakanz setzen",
+    holidayTitle: "Vakanz",
+    holidayFrom: "Vakanz vun",
+    holidayTo: "Vakanz bis",
+    holidayHint: "Béid Felder eidel = keng Vakanz. Nëmmen een Datum = deen een Dag. No dem leschten Dag schalt sech d'Period vun eleng of.",
+    holidayClear: "Läschen",
     pickEmoji: "Emoji wielen oder URL erafügen",
     status: { active: "leeft", upcoming: "waart", done: "fäerdeg", skipped: "iwwersprongen", inactive: "fräi", holiday: "Vakanz" },
     dayShort: ["Méi", "Dën", "Mët", "Don", "Fre", "Sam", "Son"],
@@ -903,6 +969,12 @@ const LABELS = {
     fieldHoliday: "During holidays",
     holidayModes: { always: "still runs", skip_holiday: "paused", only_holiday: "holidays only" },
     holidayBadge: "Holiday",
+    holidayBtn: "Set holidays",
+    holidayTitle: "Holidays",
+    holidayFrom: "Holiday from",
+    holidayTo: "Holiday until",
+    holidayHint: "Both empty = no holiday. A single date = that one day. The period switches itself off after its last day.",
+    holidayClear: "Clear",
     pickEmoji: "Pick an emoji or paste a URL",
     status: { active: "active", upcoming: "upcoming", done: "done", skipped: "skipped", inactive: "off today", holiday: "holiday" },
     dayShort: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
@@ -957,6 +1029,14 @@ const BASE_CSS = `
     transition: opacity 0.15s, background 0.15s;
   }
   .edit-btn:hover { opacity: 1; background: var(--secondary-background-color); }
+  .idle-actions { display: flex; align-items: center; gap: 2px; }
+  /* The holiday button lights up only while a holiday is actually running —
+     a period whose last day has passed clears itself, so the button goes
+     back to neutral on its own. */
+  .edit-btn.on {
+    opacity: 1;
+    background: color-mix(in srgb, #f59e0b 20%, transparent);
+  }
   .next-hint {
     display: flex; align-items: center; gap: 8px;
     font-size: 13px;
@@ -1451,54 +1531,7 @@ const OVERLAY_HTML = `
 `;
 
 // ── modal markup (one-shot template) ────────────────────────────────────────
-const MODAL_HTML = `
-<dialog id="mr-modal" class="mr-dialog">
-  <div id="modal-backdrop" class="mr-backdrop"></div>
-  <div class="mr-dialog-body">
-    <div class="mr-dialog-header">
-      <h3 id="modal-title">Step</h3>
-      <button class="modal-close" id="cancel-btn">×</button>
-    </div>
-    <div class="mr-form">
-      <div class="form-row">
-        <label for="f-name">Name</label>
-        <input type="text" id="f-name" />
-      </div>
-      <div class="form-grid">
-        <div class="form-row">
-          <label for="f-start">Start</label>
-          <input type="time" id="f-start" />
-        </div>
-        <div class="form-row">
-          <label for="f-duration">Duration (min)</label>
-          <input type="number" id="f-duration" min="1" max="600" />
-        </div>
-      </div>
-      <div class="form-row">
-        <label for="f-image">Picture / Emoji</label>
-        <div class="image-input-wrap">
-          <span id="emoji-preview" class="emoji-preview">☕</span>
-          <input type="text" id="f-image" />
-        </div>
-        <div id="emoji-grid" class="emoji-grid"></div>
-      </div>
-      <div class="form-row">
-        <label id="lbl-days">Active days</label>
-        <div id="f-days" class="day-chips"></div>
-      </div>
-      <div class="form-row">
-        <label id="lbl-holiday">During holidays</label>
-        <div id="f-holiday" class="mode-chips"></div>
-      </div>
-    </div>
-    <div class="mr-dialog-footer">
-      <button class="btn btn-danger" id="delete-btn">🗑️ Delete</button>
-      <div style="flex:1"></div>
-      <button class="btn btn-ghost" id="cancel-btn-2">Cancel</button>
-      <button class="btn btn-primary" id="save-btn">Save</button>
-    </div>
-  </div>
-</dialog>
+const MODAL_CSS = `
 <style>
   .mr-dialog {
     border: none;
@@ -1557,6 +1590,7 @@ const MODAL_HTML = `
   }
   .form-row input[type="text"],
   .form-row input[type="time"],
+  .form-row input[type="date"],
   .form-row input[type="number"] {
     padding: 10px 12px;
     border-radius: 8px;
@@ -1662,6 +1696,7 @@ const MODAL_HTML = `
     opacity: 1;
     border-color: #f59e0b;
   }
+  .h-hint { font-size: 13px; opacity: 0.7; line-height: 1.4; }
   .mr-dialog-footer {
     padding: 14px 22px;
     border-top: 1px solid var(--divider-color, rgba(255,255,255,0.1));
@@ -1698,6 +1733,88 @@ const MODAL_HTML = `
   }
 </style>
 `;
+
+const MODAL_HTML = `
+<dialog id="mr-modal" class="mr-dialog">
+  <div id="modal-backdrop" class="mr-backdrop"></div>
+  <div class="mr-dialog-body">
+    <div class="mr-dialog-header">
+      <h3 id="modal-title">Step</h3>
+      <button class="modal-close" id="cancel-btn">×</button>
+    </div>
+    <div class="mr-form">
+      <div class="form-row">
+        <label for="f-name">Name</label>
+        <input type="text" id="f-name" />
+      </div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label for="f-start">Start</label>
+          <input type="time" id="f-start" />
+        </div>
+        <div class="form-row">
+          <label for="f-duration">Duration (min)</label>
+          <input type="number" id="f-duration" min="1" max="600" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="f-image">Picture / Emoji</label>
+        <div class="image-input-wrap">
+          <span id="emoji-preview" class="emoji-preview">☕</span>
+          <input type="text" id="f-image" />
+        </div>
+        <div id="emoji-grid" class="emoji-grid"></div>
+      </div>
+      <div class="form-row">
+        <label id="lbl-days">Active days</label>
+        <div id="f-days" class="day-chips"></div>
+      </div>
+      <div class="form-row">
+        <label id="lbl-holiday">During holidays</label>
+        <div id="f-holiday" class="mode-chips"></div>
+      </div>
+    </div>
+    <div class="mr-dialog-footer">
+      <button class="btn btn-danger" id="delete-btn">🗑️ Delete</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" id="cancel-btn-2">Cancel</button>
+      <button class="btn btn-primary" id="save-btn">Save</button>
+    </div>
+  </div>
+</dialog>` + MODAL_CSS;
+
+// Same chrome as the step modal, so both dialogs share one stylesheet.
+const HOLIDAY_MODAL_HTML = `
+<dialog id="mr-holiday-modal" class="mr-dialog">
+  <div id="h-backdrop" class="mr-backdrop"></div>
+  <div class="mr-dialog-body">
+    <div class="mr-dialog-header">
+      <h3 id="h-title">Holidays</h3>
+      <button class="modal-close" id="h-close">×</button>
+    </div>
+    <div class="mr-form">
+      <div class="form-grid">
+        <div class="form-row">
+          <label id="h-lbl-from" for="h-from">From</label>
+          <input type="date" id="h-from" />
+        </div>
+        <div class="form-row">
+          <label id="h-lbl-to" for="h-to">Until</label>
+          <input type="date" id="h-to" />
+        </div>
+      </div>
+      <div id="h-hint" class="h-hint"></div>
+    </div>
+    <div class="mr-dialog-footer">
+      <button class="btn btn-danger" id="h-clear">🗑️ Clear</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" id="h-cancel">Cancel</button>
+      <button class="btn btn-primary" id="h-save">Save</button>
+    </div>
+  </div>
+</dialog>
+` + MODAL_CSS;
+
 
 customElements.define("morning-routine-card", MorningRoutineCard);
 customElements.define("morning-routine-card-editor", MorningRoutineCardEditor);
