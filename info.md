@@ -6,6 +6,7 @@ Visual morning routine for Home Assistant — designed for kids who can't read a
 
 - Fully visual — no time-reading needed
 - High-contrast mode for visual impairments (auto-detects `prefers-contrast: more`)
+- Holiday mode per step — pause the school-bus popup during holidays, keep the evening shower
 - Configurable via UI (no YAML)
 - DE / LB / EN
 - Optional TTS announcements (Lux-TTS friendly)

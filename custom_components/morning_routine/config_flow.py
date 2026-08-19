@@ -6,7 +6,9 @@ with sensible default steps; all real configuration happens in Options.
 from __future__ import annotations
 
 import os
+import re
 import uuid
+from datetime import date
 from typing import Any
 
 import voluptuous as vol
@@ -21,6 +23,9 @@ from .const import (
     CONF_DAYS,
     CONF_DURATION,
     CONF_HIGH_CONTRAST,
+    CONF_HOLIDAY_ENTITY,
+    CONF_HOLIDAY_MODE,
+    CONF_HOLIDAY_RANGES,
     CONF_IMAGE,
     CONF_LANGUAGE,
     CONF_NAME,
@@ -32,9 +37,12 @@ from .const import (
     CONF_TTS_TARGET,
     DAYS_ALL,
     DEFAULT_DURATION_MIN,
+    DEFAULT_HOLIDAY_MODE,
     DEFAULT_LANGUAGE,
     DEFAULT_PREWARN_SECONDS,
     DOMAIN,
+    HOLIDAY_MODE_SKIP,
+    HOLIDAY_MODES,
 )
 
 BUNDLED = "/morning_routine_frontend/images"
@@ -124,6 +132,65 @@ def _image_options(hass: HomeAssistant | None) -> list[dict[str, str]]:
 
     return options
 
+# Accepts one period per line, ISO or European notation, e.g.
+#   2026-07-15 .. 2026-09-14
+#   15.07.2026 - 14.09.2026
+#   2026-11-01                 (single day)
+_ISO_DATE = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
+_EU_DATE = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b")
+
+
+def _dates_in_line(line: str) -> list[date]:
+    """Pull every date out of one line, in the order they appear."""
+    found: list[tuple[int, date]] = []
+    for m in _ISO_DATE.finditer(line):
+        y, mo, d = (int(g) for g in m.groups())
+        found.append((m.start(), date(y, mo, d)))
+    for m in _EU_DATE.finditer(line):
+        d, mo, y = (int(g) for g in m.groups())
+        found.append((m.start(), date(y, mo, d)))
+    found.sort()
+    return [d for _, d in found]
+
+
+def parse_holiday_ranges(text: str) -> list[dict[str, str]]:
+    """Parse the free-text holiday field into normalised ISO ranges.
+
+    Raises ValueError on any line that does not hold exactly one or two
+    dates, so the user gets a form error instead of silently losing a
+    holiday period.
+    """
+    ranges: list[dict[str, str]] = []
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            dates = _dates_in_line(line)
+        except ValueError as err:  # e.g. 2026-13-45
+            raise ValueError(line) from err
+        if len(dates) == 1:
+            start = end = dates[0]
+        elif len(dates) == 2:
+            start, end = sorted(dates)
+        else:
+            raise ValueError(line)
+        ranges.append({"start": start.isoformat(), "end": end.isoformat()})
+    return ranges
+
+
+def holiday_ranges_to_text(ranges: list[dict[str, str]] | None) -> str:
+    """Render stored ranges back into the editable text form."""
+    lines: list[str] = []
+    for rng in ranges or []:
+        if not isinstance(rng, dict):
+            continue
+        start = rng.get("start", "")
+        end = rng.get("end", start)
+        lines.append(start if start == end else f"{start} .. {end}")
+    return "\n".join(lines)
+
+
 DEFAULT_STEPS = [
     {
         CONF_NAME: "Kaffee",
@@ -156,6 +223,8 @@ DEFAULT_STEPS = [
         CONF_DURATION: 5,
         CONF_IMAGE: "🎒",
         CONF_DAYS: ["mon", "tue", "wed", "thu", "fri"],
+        # School bag is a school-day thing — mute it during holidays.
+        CONF_HOLIDAY_MODE: HOLIDAY_MODE_SKIP,
     },
 ]
 
@@ -214,7 +283,14 @@ class MorningRoutineOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_step", "edit_step", "remove_step", "settings", "display"],
+            menu_options=[
+                "add_step",
+                "edit_step",
+                "remove_step",
+                "holidays",
+                "settings",
+                "display",
+            ],
         )
 
     # ── add ──────────────────────────────────────────────────────────────────
@@ -342,6 +418,54 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         )
         return self.async_show_form(step_id="settings", data_schema=schema)
 
+    # ── holidays ─────────────────────────────────────────────────────────────
+    async def async_step_holidays(self, user_input: dict | None = None) -> FlowResult:
+        """Holiday periods + an optional entity that flags a day off.
+
+        Either source is enough to put the routine into holiday mode; each
+        step then decides for itself (see the step form) whether it still
+        runs, gets muted, or is holiday-only.
+        """
+        opts = self.entry.options
+        errors: dict[str, str] = {}
+        text_default = holiday_ranges_to_text(opts.get(CONF_HOLIDAY_RANGES, []))
+
+        if user_input is not None:
+            text_default = user_input.get(CONF_HOLIDAY_RANGES, "")
+            try:
+                ranges = parse_holiday_ranges(text_default)
+            except ValueError:
+                errors[CONF_HOLIDAY_RANGES] = "invalid_holiday_ranges"
+            else:
+                new_opts = {
+                    **opts,
+                    CONF_STEPS: self._steps,
+                    CONF_HOLIDAY_RANGES: ranges,
+                    CONF_HOLIDAY_ENTITY: user_input.get(CONF_HOLIDAY_ENTITY, ""),
+                }
+                return self.async_create_entry(title="", data=new_opts)
+
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_HOLIDAY_RANGES, default=text_default
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(multiline=True)
+                ),
+                vol.Optional(
+                    CONF_HOLIDAY_ENTITY,
+                    default=opts.get(CONF_HOLIDAY_ENTITY, ""),
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain=["input_boolean", "binary_sensor", "calendar", "schedule"]
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="holidays", data_schema=schema, errors=errors
+        )
+
     # ── display & accessibility ──────────────────────────────────────────────
     async def async_step_display(self, user_input: dict | None = None) -> FlowResult:
         """Visual / accessibility settings, surfaced as its own menu entry so
@@ -399,6 +523,16 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                     selector.SelectSelectorConfig(
                         options=[{"value": d, "label": d} for d in DAYS_ALL],
                         multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                    )
+                ),
+                vol.Optional(
+                    CONF_HOLIDAY_MODE,
+                    default=d.get(CONF_HOLIDAY_MODE, DEFAULT_HOLIDAY_MODE),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=list(HOLIDAY_MODES),
+                        translation_key=CONF_HOLIDAY_MODE,
                         mode=selector.SelectSelectorMode.LIST,
                     )
                 ),

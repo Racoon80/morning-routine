@@ -37,7 +37,9 @@ set_steps:
   fields:
     steps:
       name: Steps
-      description: List of step dicts with name, name_lb, start, duration, image, days.
+      description: >
+        List of step dicts with name, name_lb, start, duration, image, days and
+        holiday_mode (always | skip_holiday | only_holiday, default always).
       required: true
       example: |
         - name: Coffee
@@ -46,5 +48,13 @@ set_steps:
           duration: 15
           image: "☕"
           days: [mon, tue, wed, thu, fri]
+          holiday_mode: always
+        - name: School bus
+          name_lb: Bus
+          start: "07:50"
+          duration: 10
+          image: "🚌"
+          days: [mon, tue, wed, thu, fri]
+          holiday_mode: skip_holiday
       selector:
         object: {}

@@ -23,6 +23,7 @@
           "add_step": "Add a step",
           "edit_step": "Edit a step",
           "remove_step": "Remove a step",
+          "holidays": "Holidays",
           "settings": "Sound, voice & language",
           "display": "Display & accessibility"
         }
@@ -35,10 +36,16 @@
           "start": "Start time",
           "duration": "Duration",
           "image": "Picture (pick bundled / from /config/www/morning/, or paste any URL)",
-          "days": "Active days"
+          "days": "Active days",
+          "holiday_mode": "During holidays"
         }
       },
-      "edit_step": {"title": "Edit which step?", "data": {"step_id": "Step"}},
+      "edit_step": {
+        "title": "Edit which step?",
+        "data": {
+          "step_id": "Step"
+        }
+      },
       "edit_form": {
         "title": "Edit step",
         "data": {
@@ -47,10 +54,28 @@
           "start": "Start time",
           "duration": "Duration",
           "image": "Picture (pick bundled / from /config/www/morning/, or paste any URL)",
-          "days": "Active days"
+          "days": "Active days",
+          "holiday_mode": "During holidays"
         }
       },
-      "remove_step": {"title": "Remove which step?", "data": {"step_id": "Step"}},
+      "remove_step": {
+        "title": "Remove which step?",
+        "data": {
+          "step_id": "Step"
+        }
+      },
+      "holidays": {
+        "title": "Holidays",
+        "description": "One period per line, e.g. `2026-07-15 .. 2026-09-14` (a single date = one day). Each step decides for itself what happens during holidays.",
+        "data": {
+          "holiday_ranges": "Holiday periods",
+          "holiday_entity": "Holiday switch / calendar (optional)"
+        },
+        "data_description": {
+          "holiday_ranges": "One per line: 2026-07-15 .. 2026-09-14  (or 15.07.2026 - 14.09.2026). A line with a single date means one day.",
+          "holiday_entity": "Any entity that is 'on' during a day off — input_boolean, binary_sensor, schedule or a school-holiday calendar."
+        }
+      },
       "settings": {
         "title": "Sound, voice & language",
         "data": {
@@ -74,13 +99,31 @@
     "abort": {
       "no_steps": "No steps configured yet — add one first.",
       "not_found": "Step no longer exists."
+    },
+    "error": {
+      "invalid_holiday_ranges": "Could not read the holiday periods. Use one period per line, e.g. 2026-07-15 .. 2026-09-14"
     }
   },
   "entity": {
     "sensor": {
-      "active_step": {"name": "Active step"},
-      "progress": {"name": "Progress"},
-      "time_left": {"name": "Time left"}
+      "active_step": {
+        "name": "Active step"
+      },
+      "progress": {
+        "name": "Progress"
+      },
+      "time_left": {
+        "name": "Time left"
+      }
+    }
+  },
+  "selector": {
+    "holiday_mode": {
+      "options": {
+        "always": "Runs during holidays too",
+        "skip_holiday": "Paused during holidays",
+        "only_holiday": "Only during holidays"
+      }
     }
   }
 }

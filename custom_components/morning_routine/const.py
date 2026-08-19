@@ -16,6 +16,21 @@ CONF_DAYS = "days"
 CONF_LANGUAGE = "language"
 CONF_PREWARN_SECONDS = "prewarn_seconds"
 CONF_HIGH_CONTRAST = "high_contrast"
+# Per-step: how the step behaves while the routine is in "holiday" mode.
+CONF_HOLIDAY_MODE = "holiday_mode"
+# Integration-wide holiday sources (either one is enough to make today a holiday)
+CONF_HOLIDAY_RANGES = "holiday_ranges"
+CONF_HOLIDAY_ENTITY = "holiday_entity"
+
+# Holiday behaviour per step:
+#   always       — runs on school days AND during holidays (e.g. shower)
+#   skip_holiday — does not run during holidays (e.g. catch the bus)
+#   only_holiday — runs ONLY during holidays (e.g. late breakfast, swimming)
+HOLIDAY_MODE_ALWAYS = "always"
+HOLIDAY_MODE_SKIP = "skip_holiday"
+HOLIDAY_MODE_ONLY = "only_holiday"
+HOLIDAY_MODES = [HOLIDAY_MODE_ALWAYS, HOLIDAY_MODE_SKIP, HOLIDAY_MODE_ONLY]
+DEFAULT_HOLIDAY_MODE = HOLIDAY_MODE_ALWAYS
 
 DEFAULT_DURATION_MIN = 15
 DEFAULT_LANGUAGE = "de"
@@ -39,5 +54,6 @@ ATTR_IMAGE = "image"
 ATTR_NAME = "name"
 ATTR_NAME_LB = "name_lb"
 ATTR_NEXT_STEP = "next_step"
+ATTR_HOLIDAY = "holiday"
 
 DAYS_ALL = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]

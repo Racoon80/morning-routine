@@ -37,6 +37,7 @@ When idle, the card shows the day's full schedule with status indicators. You ca
 - **Optional chime** on step start via any `media_player`
 - **Multi-language** — Deutsch · Lëtzebuergesch · English
 - **Per-step day selection** — Mon / Tue / … / Sun
+- **Holiday mode, per step** — define holiday periods (or point at a switch/calendar) and choose per step whether it *still runs*, is *paused*, or runs *only during holidays*. The school bus popup stays quiet, the evening shower doesn't.
 - **Smart overlap handling** — when two windows overlap, the later-starting step takes focus; earlier one is marked `skipped`
 - **Snooze auto-reset** — `start_now` and `snooze` only shift the current routine; the schedule snaps back to wall-clock once it finishes
 - **Single install** — Lovelace card and resource registration are bundled with the integration; no separate setup
@@ -107,7 +108,40 @@ Settings → Devices & Services → **Morning Routine** → **Configure**
 
 Menu options:
 - Add a step / Edit a step / Remove a step
+- **Holidays** — holiday periods + optional holiday entity (see below)
 - **Sound, voice & language** — TTS service/target, chime, language, pre-warn seconds
+
+---
+
+## Holidays
+
+School holidays shouldn't nag the kid about the bus — but the evening shower still has to happen. So holiday behaviour is set **per step**.
+
+**1. Tell the integration when it's a holiday** — Configure → **Holidays**. Two independent sources, either one is enough:
+
+- **Holiday periods** — one per line, in the text box:
+
+  ```
+  2026-07-15 .. 2026-09-14
+  15.07.2026 - 14.09.2026     # European notation works too
+  2026-11-01                  # a single date = a single day
+  ```
+
+  Anything else on the line (e.g. `Summer: 2026-07-15 .. 2026-09-14`) is ignored, so you can label your periods.
+
+- **Holiday switch / calendar** — any entity that is `on` while it's a day off: an `input_boolean` you flip for a sick day, a `binary_sensor`, a `schedule`, or a school-holiday `calendar`.
+
+**2. Set each step's holiday behaviour** — in the step form (HA options *or* the pencil in the card):
+
+| Mode | Meaning | Example |
+|---|---|---|
+| Runs during holidays too *(default)* | Nothing changes | Shower, brush teeth |
+| Paused during holidays | Step is muted, no overlay pops up | Catch the school bus, pack the school bag |
+| Only during holidays | Step appears **only** on holidays | Late breakfast, swimming pool |
+
+Muted steps stay visible in the schedule with an amber `Holiday` badge, so the day still reads as a whole. While a holiday is on, the idle card shows a 🏖️ badge in its header, and `sensor.<active_step>` carries a `holiday: true` attribute you can use in automations.
+
+Existing steps keep the default mode, so upgrading changes nothing until you set it.
 
 ---
 
@@ -197,7 +231,7 @@ Wire these to lights, music, blinds, anything.
 
 | Entity | State | Useful attributes |
 |---|---|---|
-| `sensor.<active_step>` | step name (or `unknown`) | `image`, `progress`, `time_left`, `next_step`, `schedule`, `all_steps`, `_mr_role` |
+| `sensor.<active_step>` | step name (or `unknown`) | `image`, `progress`, `time_left`, `next_step`, `schedule`, `holiday`, `all_steps`, `_mr_role` |
 | `sensor.<progress>` | 0–100 % | — |
 | `sensor.<time_left>` | seconds | — |
 

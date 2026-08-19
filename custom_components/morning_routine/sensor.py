@@ -10,6 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    ATTR_HOLIDAY,
     ATTR_IMAGE,
     ATTR_NAME,
     ATTR_NAME_LB,
@@ -77,6 +78,10 @@ class ActiveStepSensor(_Base):
             ATTR_TIME_LEFT: data.get("time_left", 0),
             ATTR_NEXT_STEP: data.get("next"),
             "schedule": data.get("schedule", []),
+            # True while today counts as a holiday (date range or holiday
+            # entity). The card uses it for the badge; automations can use it
+            # as a plain template condition.
+            ATTR_HOLIDAY: bool(data.get("holiday", False)),
             "all_steps": raw_steps,
             "entry_id": self._entry.entry_id,
             # Integration-wide UI flag — read by the Lovelace card so users can

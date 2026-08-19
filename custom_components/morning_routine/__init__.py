@@ -156,7 +156,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _set_steps(call) -> None:
         """Replace the entire step list. Used by the in-card editor."""
-        from .const import CONF_STEPS, DAYS_ALL
+        from .const import CONF_STEPS, DAYS_ALL, DEFAULT_HOLIDAY_MODE, HOLIDAY_MODES
         import uuid
 
         raw_steps = call.data.get("steps", [])
@@ -185,6 +185,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if not isinstance(days, list):
                 days = DAYS_ALL
             days = [d for d in days if d in DAYS_ALL] or DAYS_ALL
+            holiday_mode = s.get("holiday_mode", DEFAULT_HOLIDAY_MODE)
+            if holiday_mode not in HOLIDAY_MODES:
+                holiday_mode = DEFAULT_HOLIDAY_MODE
             cleaned.append({
                 "id": sid,
                 "name": str(s.get("name") or "").strip() or "Step",
@@ -193,6 +196,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "duration": duration,
                 "image": str(s.get("image") or "☕"),
                 "days": days,
+                "holiday_mode": holiday_mode,
             })
 
         # Apply to all entries (single-instance integration, but loop for safety)

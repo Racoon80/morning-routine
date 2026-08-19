@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.10.6";
+const VERSION = "0.11.0";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -402,7 +402,7 @@ class MorningRoutineCard extends HTMLElement {
     host.innerHTML = `
       <div class="idle">
         <div class="idle-header">
-          <div class="title">🌅 ${L.title}</div>
+          <div class="title">🌅 ${L.title}${data.holiday ? `<span class="holiday-badge">🏖️ ${L.holidayBadge}</span>` : ""}</div>
           <button class="edit-btn" id="open-options-btn" title="${L.optionsLabel}">⚙️</button>
         </div>
         ${nextHint}
@@ -433,7 +433,7 @@ class MorningRoutineCard extends HTMLElement {
     const editing = editIndex != null && currentSteps[editIndex];
     const formState = editing
       ? { ...editing }
-      : { name: "", name_lb: "", start: "07:30", duration: 15, image: "☕", days: ["mon","tue","wed","thu","fri"] };
+      : { name: "", name_lb: "", start: "07:30", duration: 15, image: "☕", days: ["mon","tue","wed","thu","fri"], holiday_mode: "always" };
 
     let modal = this.shadowRoot.getElementById("mr-modal");
     if (modal) modal.remove();
@@ -467,6 +467,21 @@ class MorningRoutineCard extends HTMLElement {
       c.addEventListener("click", () => c.classList.toggle("on"));
     });
 
+    // Holiday behaviour — exactly one of the three modes is selected.
+    const holWrap = $("f-holiday");
+    const holMode = HOLIDAY_MODES.includes(formState.holiday_mode)
+      ? formState.holiday_mode
+      : "always";
+    holWrap.innerHTML = HOLIDAY_MODES.map((m) => `
+      <button type="button" class="mode-chip ${m === holMode ? "on" : ""}" data-mode="${m}">${escapeHtml(L.holidayModes[m])}</button>
+    `).join("");
+    holWrap.querySelectorAll(".mode-chip").forEach((c) => {
+      c.addEventListener("click", () => {
+        holWrap.querySelectorAll(".mode-chip.on").forEach((x) => x.classList.remove("on"));
+        c.classList.add("on");
+      });
+    });
+
     // Emoji grid — render each option using the same fluent/twemoji style as
     // the rest of the card. Falls back to the raw emoji char if no URL is
     // available (e.g. emoji_style: native or codepoint missing in fluent map).
@@ -496,8 +511,8 @@ class MorningRoutineCard extends HTMLElement {
     modal.querySelector('label[for="f-start"]').textContent = L.fieldStart;
     modal.querySelector('label[for="f-duration"]').textContent = L.fieldDuration;
     modal.querySelector('label[for="f-image"]').textContent = L.fieldImage;
-    const daysLabel = modal.querySelectorAll("label")[4];
-    if (daysLabel) daysLabel.textContent = L.fieldDays;
+    $("lbl-days").textContent = L.fieldDays;
+    $("lbl-holiday").textContent = L.fieldHoliday;
     $("save-btn").textContent = L.save;
     $("cancel-btn-2").textContent = L.cancel;
     $("delete-btn").innerHTML = "🗑️ " + L.delete;
@@ -525,6 +540,7 @@ class MorningRoutineCard extends HTMLElement {
         duration: parseInt($("f-duration").value, 10) || 15,
         image: $("f-image").value || "☕",
         days: days.length ? days : ["mon","tue","wed","thu","fri","sat","sun"],
+        holiday_mode: holWrap.querySelector(".mode-chip.on")?.dataset.mode || "always",
       };
       const newSteps = [...currentSteps];
       if (editing) {
@@ -832,8 +848,11 @@ const LABELS = {
     fieldDuration: "Dauer (min)",
     fieldImage: "Bild / Emoji",
     fieldDays: "Aktive Tage",
+    fieldHoliday: "In den Ferien",
+    holidayModes: { always: "läuft auch", skip_holiday: "pausiert", only_holiday: "nur Ferien" },
+    holidayBadge: "Ferien",
     pickEmoji: "Emoji wählen oder URL eingeben",
-    status: { active: "läuft", upcoming: "wartet", done: "fertig", skipped: "übersprungen", inactive: "frei" },
+    status: { active: "läuft", upcoming: "wartet", done: "fertig", skipped: "übersprungen", inactive: "frei", holiday: "Ferien" },
     dayShort: ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
   },
   lb: {
@@ -855,8 +874,11 @@ const LABELS = {
     fieldDuration: "Dauer (min)",
     fieldImage: "Bild / Emoji",
     fieldDays: "Aktiv Deeg",
+    fieldHoliday: "An der Vakanz",
+    holidayModes: { always: "leeft och", skip_holiday: "Paus", only_holiday: "nëmme Vakanz" },
+    holidayBadge: "Vakanz",
     pickEmoji: "Emoji wielen oder URL erafügen",
-    status: { active: "leeft", upcoming: "waart", done: "fäerdeg", skipped: "iwwersprongen", inactive: "fräi" },
+    status: { active: "leeft", upcoming: "waart", done: "fäerdeg", skipped: "iwwersprongen", inactive: "fräi", holiday: "Vakanz" },
     dayShort: ["Méi", "Dën", "Mët", "Don", "Fre", "Sam", "Son"],
   },
   en: {
@@ -878,11 +900,17 @@ const LABELS = {
     fieldDuration: "Duration (min)",
     fieldImage: "Picture / emoji",
     fieldDays: "Active days",
+    fieldHoliday: "During holidays",
+    holidayModes: { always: "still runs", skip_holiday: "paused", only_holiday: "holidays only" },
+    holidayBadge: "Holiday",
     pickEmoji: "Pick an emoji or paste a URL",
-    status: { active: "active", upcoming: "upcoming", done: "done", skipped: "skipped", inactive: "off today" },
+    status: { active: "active", upcoming: "upcoming", done: "done", skipped: "skipped", inactive: "off today", holiday: "holiday" },
     dayShort: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   },
 };
+
+// Keep in sync with HOLIDAY_MODES in const.py
+const HOLIDAY_MODES = ["always", "skip_holiday", "only_holiday"];
 
 const COMMON_EMOJIS = [
   "☕","🍵","🥛","🥣","🥐","🍞","🥚","🥞",
@@ -1015,6 +1043,23 @@ const BASE_CSS = `
     background: color-mix(in srgb, currentColor 12%, transparent);
     opacity: 1;
   }
+  /* Muted by the holiday rules (skip-on-holiday during a holiday, or a
+     holiday-only step on a school day). Same "not today" dimming as
+     .inactive, but with the holiday colour so the reason is obvious. */
+  .row.holiday { opacity: 0.4; }
+  .row.holiday .row-status {
+    background: color-mix(in srgb, #f59e0b 18%, transparent);
+    color: #f59e0b;
+    opacity: 1;
+  }
+  .holiday-badge {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 3px 10px; border-radius: 999px;
+    background: color-mix(in srgb, #f59e0b 20%, transparent);
+    color: #f59e0b;
+  }
+  .idle-header .title { display: flex; align-items: center; gap: 8px; }
   .row.empty { opacity: 0.6; font-size: 13px; padding: 14px; justify-content: center; display: flex; }
   .row-icon { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
   .row-name { font-size: 14px; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; }
@@ -1107,6 +1152,18 @@ const BASE_CSS = `
     border-color: #f59e0b;
     text-decoration-thickness: 2px;
     text-decoration-color: currentColor;
+  }
+  /* Holiday-muted rows keep full opacity in high contrast; the dashed
+     border carries the "not today" meaning instead of the dimming. */
+  ha-card.mr-host.hc .row.holiday {
+    opacity: 1;
+    border-style: dashed;
+    border-color: var(--primary-text-color);
+  }
+  ha-card.mr-host.hc .holiday-badge {
+    background: var(--primary-text-color);
+    color: var(--card-background-color);
+    border: 2px solid var(--primary-text-color);
   }
   ha-card.mr-host.hc .row-status {
     border: 2px solid currentColor;
@@ -1426,8 +1483,12 @@ const MODAL_HTML = `
         <div id="emoji-grid" class="emoji-grid"></div>
       </div>
       <div class="form-row">
-        <label>Active days</label>
+        <label id="lbl-days">Active days</label>
         <div id="f-days" class="day-chips"></div>
+      </div>
+      <div class="form-row">
+        <label id="lbl-holiday">During holidays</label>
+        <div id="f-holiday" class="mode-chips"></div>
       </div>
     </div>
     <div class="mr-dialog-footer">
@@ -1579,6 +1640,27 @@ const MODAL_HTML = `
     color: var(--text-primary-color, #fff);
     opacity: 1;
     border-color: var(--primary-color, #03a9f4);
+  }
+  /* Holiday behaviour — single-choice chips, visually distinct from the
+     multi-select day chips so it doesn't read as "pick several". */
+  .mode-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mode-chip {
+    background: var(--secondary-background-color);
+    border: 1px solid transparent;
+    color: var(--primary-text-color);
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    opacity: 0.5;
+    transition: all 0.15s;
+  }
+  .mode-chip:hover { opacity: 0.8; }
+  .mode-chip.on {
+    background: color-mix(in srgb, #f59e0b 28%, transparent);
+    color: #f59e0b;
+    opacity: 1;
+    border-color: #f59e0b;
   }
   .mr-dialog-footer {
     padding: 14px 22px;

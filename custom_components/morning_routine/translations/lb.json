@@ -23,6 +23,7 @@
           "add_step": "Schrëtt derbäi",
           "edit_step": "Schrëtt änneren",
           "remove_step": "Schrëtt ewechhuelen",
+          "holidays": "Vakanz",
           "settings": "Toun, Stëmm & Sprooch",
           "display": "Affichage & Accessibilitéit"
         }
@@ -35,10 +36,16 @@
           "start": "Startzäit",
           "duration": "Dauer",
           "image": "Bild (auswielen aus matgeliwwerten / /config/www/morning/, oder URL erafügen)",
-          "days": "Aktiv Deeg"
+          "days": "Aktiv Deeg",
+          "holiday_mode": "An der Vakanz"
         }
       },
-      "edit_step": {"title": "Wéi ee Schrëtt änneren?", "data": {"step_id": "Schrëtt"}},
+      "edit_step": {
+        "title": "Wéi ee Schrëtt änneren?",
+        "data": {
+          "step_id": "Schrëtt"
+        }
+      },
       "edit_form": {
         "title": "Schrëtt änneren",
         "data": {
@@ -47,10 +54,28 @@
           "start": "Startzäit",
           "duration": "Dauer",
           "image": "Bild (auswielen aus matgeliwwerten / /config/www/morning/, oder URL erafügen)",
-          "days": "Aktiv Deeg"
+          "days": "Aktiv Deeg",
+          "holiday_mode": "An der Vakanz"
         }
       },
-      "remove_step": {"title": "Wéi ee Schrëtt ewechhuelen?", "data": {"step_id": "Schrëtt"}},
+      "remove_step": {
+        "title": "Wéi ee Schrëtt ewechhuelen?",
+        "data": {
+          "step_id": "Schrëtt"
+        }
+      },
+      "holidays": {
+        "title": "Vakanz",
+        "description": "Eng Period pro Zeil, z. B. `2026-07-15 .. 2026-09-14` (een eenzelt Datum = een Dag). All Schrëtt entscheet selwer, wat an der Vakanz geschitt.",
+        "data": {
+          "holiday_ranges": "Vakanzperioden",
+          "holiday_entity": "Vakanz-Schalter / Kalenner (optional)"
+        },
+        "data_description": {
+          "holiday_ranges": "Eng pro Zeil: 2026-07-15 .. 2026-09-14  (oder 15.07.2026 - 14.09.2026). Eng Zeil mat nëmmen engem Datum ass een eenzelen Dag.",
+          "holiday_entity": "Egal wéi eng Entitéit déi op engem fräien Dag 'on' ass — input_boolean, binary_sensor, Zäitplang oder e Schoulvakanz-Kalenner."
+        }
+      },
       "settings": {
         "title": "Toun, Stëmm & Sprooch",
         "data": {
@@ -74,13 +99,31 @@
     "abort": {
       "no_steps": "Nach keng Schrëtt konfiguréiert - fir d'éischt een derbäisetzen.",
       "not_found": "Schrëtt existéiert net méi."
+    },
+    "error": {
+      "invalid_holiday_ranges": "D'Vakanzperioden konnten net gelies ginn. Eng Period pro Zeil, z. B. 2026-07-15 .. 2026-09-14"
     }
   },
   "entity": {
     "sensor": {
-      "active_step": {"name": "Aktive Schrëtt"},
-      "progress": {"name": "Fortschrëtt"},
-      "time_left": {"name": "Iwwreg Zäit"}
+      "active_step": {
+        "name": "Aktive Schrëtt"
+      },
+      "progress": {
+        "name": "Fortschrëtt"
+      },
+      "time_left": {
+        "name": "Iwwreg Zäit"
+      }
+    }
+  },
+  "selector": {
+    "holiday_mode": {
+      "options": {
+        "always": "Leeft och an der Vakanz",
+        "skip_holiday": "Paus an der Vakanz",
+        "only_holiday": "Nëmmen an der Vakanz"
+      }
     }
   }
 }

@@ -23,6 +23,7 @@
           "add_step": "Schritt hinzufügen",
           "edit_step": "Schritt bearbeiten",
           "remove_step": "Schritt entfernen",
+          "holidays": "Ferien",
           "settings": "Ton, Stimme & Sprache",
           "display": "Anzeige & Barrierefreiheit"
         }
@@ -35,10 +36,16 @@
           "start": "Startzeit",
           "duration": "Dauer",
           "image": "Bild (auswählen aus mitgelieferten / /config/www/morning/, oder URL einfügen)",
-          "days": "Aktive Tage"
+          "days": "Aktive Tage",
+          "holiday_mode": "In den Ferien"
         }
       },
-      "edit_step": {"title": "Welchen Schritt bearbeiten?", "data": {"step_id": "Schritt"}},
+      "edit_step": {
+        "title": "Welchen Schritt bearbeiten?",
+        "data": {
+          "step_id": "Schritt"
+        }
+      },
       "edit_form": {
         "title": "Schritt bearbeiten",
         "data": {
@@ -47,10 +54,28 @@
           "start": "Startzeit",
           "duration": "Dauer",
           "image": "Bild (auswählen aus mitgelieferten / /config/www/morning/, oder URL einfügen)",
-          "days": "Aktive Tage"
+          "days": "Aktive Tage",
+          "holiday_mode": "In den Ferien"
         }
       },
-      "remove_step": {"title": "Welchen Schritt entfernen?", "data": {"step_id": "Schritt"}},
+      "remove_step": {
+        "title": "Welchen Schritt entfernen?",
+        "data": {
+          "step_id": "Schritt"
+        }
+      },
+      "holidays": {
+        "title": "Ferien",
+        "description": "Ein Zeitraum pro Zeile, z. B. `2026-07-15 .. 2026-09-14` (ein einzelnes Datum = ein Tag). Jeder Schritt entscheidet selbst, was in den Ferien passiert.",
+        "data": {
+          "holiday_ranges": "Ferienzeiträume",
+          "holiday_entity": "Ferien-Schalter / Kalender (optional)"
+        },
+        "data_description": {
+          "holiday_ranges": "Einer pro Zeile: 2026-07-15 .. 2026-09-14  (oder 15.07.2026 - 14.09.2026). Eine Zeile mit nur einem Datum ist ein einzelner Tag.",
+          "holiday_entity": "Beliebige Entität, die an einem freien Tag 'on' ist — input_boolean, binary_sensor, Zeitplan oder ein Ferienkalender."
+        }
+      },
       "settings": {
         "title": "Ton, Stimme & Sprache",
         "data": {
@@ -74,13 +99,31 @@
     "abort": {
       "no_steps": "Noch keine Schritte konfiguriert - bitte zuerst einen hinzufuegen.",
       "not_found": "Schritt existiert nicht mehr."
+    },
+    "error": {
+      "invalid_holiday_ranges": "Die Ferienzeiträume konnten nicht gelesen werden. Ein Zeitraum pro Zeile, z. B. 2026-07-15 .. 2026-09-14"
     }
   },
   "entity": {
     "sensor": {
-      "active_step": {"name": "Aktiver Schritt"},
-      "progress": {"name": "Fortschritt"},
-      "time_left": {"name": "Verbleibende Zeit"}
+      "active_step": {
+        "name": "Aktiver Schritt"
+      },
+      "progress": {
+        "name": "Fortschritt"
+      },
+      "time_left": {
+        "name": "Verbleibende Zeit"
+      }
+    }
+  },
+  "selector": {
+    "holiday_mode": {
+      "options": {
+        "always": "Läuft auch in den Ferien",
+        "skip_holiday": "Pausiert in den Ferien",
+        "only_holiday": "Nur in den Ferien"
+      }
     }
   }
 }

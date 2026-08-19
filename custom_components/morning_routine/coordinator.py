@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -20,6 +20,9 @@ from .const import (
     CONF_CHIME_ENABLED,
     CONF_DAYS,
     CONF_DURATION,
+    CONF_HOLIDAY_ENTITY,
+    CONF_HOLIDAY_MODE,
+    CONF_HOLIDAY_RANGES,
     CONF_IMAGE,
     CONF_NAME,
     CONF_NAME_LB,
@@ -30,12 +33,16 @@ from .const import (
     CONF_TTS_TARGET,
     DAYS_ALL,
     DEFAULT_DURATION_MIN,
+    DEFAULT_HOLIDAY_MODE,
     DEFAULT_PREWARN_SECONDS,
     DOMAIN,
     EVENT_ROUTINE_FINISHED,
     EVENT_STEP_FINISHED,
     EVENT_STEP_PREWARN,
     EVENT_STEP_STARTED,
+    HOLIDAY_MODE_ONLY,
+    HOLIDAY_MODE_SKIP,
+    HOLIDAY_MODES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,6 +59,7 @@ class Step:
     duration: timedelta
     image: str
     days: list[str]
+    holiday_mode: str = DEFAULT_HOLIDAY_MODE
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Step":
@@ -69,6 +77,11 @@ class Step:
             duration=timedelta(minutes=int(duration_min)),
             image=data.get(CONF_IMAGE, ""),
             days=data.get(CONF_DAYS, DAYS_ALL),
+            holiday_mode=(
+                data.get(CONF_HOLIDAY_MODE, DEFAULT_HOLIDAY_MODE)
+                if data.get(CONF_HOLIDAY_MODE) in HOLIDAY_MODES
+                else DEFAULT_HOLIDAY_MODE
+            ),
         )
 
     def end(self, ref_date: datetime) -> datetime:
@@ -82,9 +95,22 @@ class Step:
             microsecond=0,
         )
 
-    def runs_today(self, now: datetime) -> bool:
+    def runs_on_weekday(self, now: datetime) -> bool:
         weekday = DAYS_ALL[now.weekday()]
         return weekday in self.days
+
+    def holiday_allows(self, is_holiday: bool) -> bool:
+        """Whether this step may run given today's holiday state.
+
+        Steps default to HOLIDAY_MODE_ALWAYS, so installs that never touch
+        the holiday settings keep behaving exactly as before.
+        """
+        if is_holiday:
+            return self.holiday_mode != HOLIDAY_MODE_SKIP
+        return self.holiday_mode != HOLIDAY_MODE_ONLY
+
+    def runs_today(self, now: datetime, is_holiday: bool = False) -> bool:
+        return self.holiday_allows(is_holiday) and self.runs_on_weekday(now)
 
 
 class MorningRoutineCoordinator(DataUpdateCoordinator):
@@ -125,6 +151,38 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         self._steps = [Step.from_dict(s) for s in raw_steps]
         self._steps.sort(key=lambda s: s.start)
 
+    # ── holidays ─────────────────────────────────────────────────────────────
+    def _is_holiday(self, now: datetime) -> bool:
+        """True when today counts as a holiday.
+
+        Two independent sources, either is enough:
+          1. Date ranges stored in the options (school holidays, typed once)
+          2. An HA entity (input_boolean, binary_sensor, calendar, schedule)
+             that is "on" — lets the user flip a sick day / day off manually
+             or drive it from a school-holiday calendar.
+        """
+        today = now.date()
+        for rng in self.entry.options.get(CONF_HOLIDAY_RANGES, []) or []:
+            if not isinstance(rng, dict):
+                continue
+            try:
+                start = date.fromisoformat(str(rng.get("start")))
+                end = date.fromisoformat(str(rng.get("end", rng.get("start"))))
+            except (TypeError, ValueError):
+                continue
+            if start > end:
+                start, end = end, start
+            if start <= today <= end:
+                return True
+
+        entity_id = self.entry.options.get(CONF_HOLIDAY_ENTITY)
+        if entity_id:
+            state = self.hass.states.get(entity_id)
+            # calendar/binary_sensor/input_boolean/schedule all use on/off.
+            if state is not None and state.state == "on":
+                return True
+        return False
+
     # ── tick ─────────────────────────────────────────────────────────────────
     @callback
     def _tick(self, _now: datetime) -> None:
@@ -143,8 +201,9 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict[str, Any]:
         now = dt_util.now() - self._snooze_offset
         self._reload_steps()
+        is_holiday = self._is_holiday(now)
 
-        new_idx = self._compute_active(now)
+        new_idx = self._compute_active(now, is_holiday)
         prev_idx = self._active_idx
 
         # Auto-reset snooze offset once the (shifted) routine has completed
@@ -155,17 +214,17 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             self._snooze_offset != timedelta(0)
             and prev_idx is not None
             and new_idx is None
-            and self._was_last_step_today(prev_idx, now)
+            and self._was_last_step_today(prev_idx, now, is_holiday)
         ):
             _LOGGER.info("Routine finished — clearing snooze offset (was %s)", self._snooze_offset)
             self._snooze_offset = timedelta(0)
             now = dt_util.now()
-            new_idx = self._compute_active(now)
+            new_idx = self._compute_active(now, is_holiday)
 
-        await self._maybe_prewarn(now)
+        await self._maybe_prewarn(now, is_holiday)
 
         if new_idx != prev_idx:
-            await self._fire_transitions(prev_idx, new_idx, now)
+            await self._fire_transitions(prev_idx, new_idx, now, is_holiday)
             self._active_idx = new_idx
 
         if new_idx is None:
@@ -173,8 +232,9 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                 "active": None,
                 "progress": 0.0,
                 "time_left": 0,
-                "next": self._next_step_today(now),
-                "schedule": self._today_schedule(now),
+                "next": self._next_step_today(now, is_holiday),
+                "schedule": self._today_schedule(now, is_holiday),
+                "holiday": is_holiday,
             }
 
         step = self._steps[new_idx]
@@ -194,11 +254,12 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             },
             "progress": progress,
             "time_left": time_left,
-            "next": self._next_step_today(now, after_idx=new_idx),
-            "schedule": self._today_schedule(now),
+            "next": self._next_step_today(now, is_holiday, after_idx=new_idx),
+            "schedule": self._today_schedule(now, is_holiday),
+            "holiday": is_holiday,
         }
 
-    def _compute_active(self, now: datetime) -> int | None:
+    def _compute_active(self, now: datetime, is_holiday: bool = False) -> int | None:
         """Return the index of the active step.
 
         When step time-windows overlap, the step with the LATEST start time
@@ -207,7 +268,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         """
         in_window: list[tuple[datetime, int]] = []
         for idx, step in enumerate(self._steps):
-            if not step.runs_today(now):
+            if not step.runs_today(now, is_holiday):
                 continue
             start_dt = step.start_dt(now)
             end_dt = start_dt + step.duration
@@ -218,7 +279,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         in_window.sort(reverse=True)
         return in_window[0][1]
 
-    def _today_schedule(self, now: datetime) -> list[dict]:
+    def _today_schedule(self, now: datetime, is_holiday: bool = False) -> list[dict]:
         """Return all configured steps with status flags for the card.
 
         Status:
@@ -230,11 +291,16 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
           inactive — step is configured but does not run today (e.g. weekend
                      and the step is Mon–Fri only). Kept in the schedule so
                      the card remains useful on off-days as a reference.
+          holiday  — step is muted by the holiday rules: either it is a
+                     skip-on-holiday step during a holiday, or a
+                     holiday-only step on a normal day.
         """
-        active_idx = self._compute_active(now)
+        active_idx = self._compute_active(now, is_holiday)
         sched: list[dict] = []
         for idx, step in enumerate(self._steps):
-            if not step.runs_today(now):
+            if not step.holiday_allows(is_holiday):
+                status = "holiday"
+            elif not step.runs_on_weekday(now):
                 status = "inactive"
             else:
                 start_dt = step.start_dt(now)
@@ -253,14 +319,17 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                 "start": step.start.strftime("%H:%M"),
                 "duration": int(step.duration.total_seconds()),
                 "status": status,
+                "holiday_mode": step.holiday_mode,
             })
         return sched
 
-    def _next_step_today(self, now: datetime, after_idx: int | None = None) -> dict | None:
+    def _next_step_today(
+        self, now: datetime, is_holiday: bool = False, after_idx: int | None = None
+    ) -> dict | None:
         for idx, step in enumerate(self._steps):
             if after_idx is not None and idx <= after_idx:
                 continue
-            if not step.runs_today(now):
+            if not step.runs_today(now, is_holiday):
                 continue
             if step.start_dt(now) > now:
                 return {
@@ -272,7 +341,11 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         return None
 
     async def _fire_transitions(
-        self, prev_idx: int | None, new_idx: int | None, now: datetime
+        self,
+        prev_idx: int | None,
+        new_idx: int | None,
+        now: datetime,
+        is_holiday: bool = False,
     ) -> None:
         if prev_idx is not None:
             self.hass.bus.async_fire(
@@ -293,22 +366,24 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             )
             await self._maybe_announce(step)
         else:
-            if prev_idx is not None and self._was_last_step_today(prev_idx, now):
+            if prev_idx is not None and self._was_last_step_today(prev_idx, now, is_holiday):
                 self.hass.bus.async_fire(EVENT_ROUTINE_FINISHED, {})
 
-    def _was_last_step_today(self, idx: int, now: datetime) -> bool:
+    def _was_last_step_today(
+        self, idx: int, now: datetime, is_holiday: bool = False
+    ) -> bool:
         for later_idx in range(idx + 1, len(self._steps)):
-            if self._steps[later_idx].runs_today(now):
+            if self._steps[later_idx].runs_today(now, is_holiday):
                 return False
         return True
 
-    async def _maybe_prewarn(self, now: datetime) -> None:
+    async def _maybe_prewarn(self, now: datetime, is_holiday: bool = False) -> None:
         """Fire a one-shot pre-warning event N seconds before each step."""
         prewarn = int(self.entry.options.get(CONF_PREWARN_SECONDS, DEFAULT_PREWARN_SECONDS))
         if prewarn <= 0:
             return
         for idx, step in enumerate(self._steps):
-            if not step.runs_today(now):
+            if not step.runs_today(now, is_holiday):
                 continue
             start_dt = step.start_dt(now)
             delta = (start_dt - now).total_seconds()
@@ -402,8 +477,15 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         """Start the first step now regardless of clock time."""
         if not self._steps:
             return
-        first = self._steps[0]
         now = dt_util.now()
+        is_holiday = self._is_holiday(now)
+        # Skip over steps that are muted today (weekday filter or holiday
+        # rules) — otherwise "start now" would silently do nothing when the
+        # first configured step is, say, a holiday-only step.
+        first = next(
+            (s for s in self._steps if s.runs_today(now, is_holiday)),
+            self._steps[0],
+        )
         target_sim = first.start_dt(now) + timedelta(seconds=1)
         self._snooze_offset = now - target_sim
         await self.async_request_refresh()
