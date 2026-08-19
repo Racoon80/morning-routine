@@ -248,6 +248,32 @@ Mount a wall tablet (Fire HD, iPad, old phone …) with **Fully Kiosk Browser** 
 
 ---
 
+## Troubleshooting
+
+**The dashboard shows a red card: “Custom element doesn't exist: morning-routine-card”**
+
+The card's script wasn't loaded into the page. Fixed in **v0.11.4** — update, restart HA, then hard-refresh the browser. On an older version, or if it survives the update, add the resource by hand:
+
+Settings → Dashboards → ⋮ → **Resources** → **Add resource**
+- URL: `/morning_routine_frontend/morning-routine-card.js`
+- Type: **JavaScript module**
+
+The integration recognises its own entry afterwards and only keeps the version query string current, so there is nothing to undo later.
+
+**The card still looks like the old version after an update**
+
+Browsers cache the script. Restart HA (the URL gets a fresh `?v=` on every version), then hard-refresh — on a wall tablet, clear the browser cache or restart the kiosk app. The console prints the version it actually loaded: `MORNING-ROUTINE-CARD v0.11.4`.
+
+**Configure has no “Holidays” entry, or a step form has no holiday field**
+
+The config flow is loaded once at startup, so a HACS update alone isn't enough — restart Home Assistant.
+
+**A step doesn't run when I expect it to**
+
+Check the step's **active days** and its **holiday mode** together: a step is muted if either one says no. The card's schedule tells you which — `off today` for the weekday filter, `holiday` for the holiday rules.
+
+---
+
 ## Local development
 
 The integration is two parts that can be tweaked independently:
@@ -265,6 +291,7 @@ The Fluent emoji map (`frontend/fluent_map.json`, ~95 KB) is generated from [mic
 
 Not promised, just open. PRs welcome.
 
+- Multiple holiday periods at once (today it is one period plus the optional entity)
 - Drag-and-drop reorder of steps in the modal
 - Per-step custom sound (bundled or URL)
 - Reward screen at the end of the routine ("3 stars!")
