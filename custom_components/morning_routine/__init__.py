@@ -12,7 +12,7 @@ from datetime import date
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.loader import async_get_integration
@@ -36,6 +36,8 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 FRONTEND_BASE = "/morning_routine_frontend"
 FRONTEND_FS_PATH = os.path.join(os.path.dirname(__file__), "frontend")
 _FRONTEND_FLAG = f"{DOMAIN}_frontend_registered"
+_RESOURCE_FLAG = f"{DOMAIN}_resource_registered"
+_CARD_URL_KEY = f"{DOMAIN}_card_url"
 
 
 async def _read_version(hass: HomeAssistant) -> str:
@@ -56,23 +58,63 @@ async def _register_frontend(hass: HomeAssistant) -> None:
       2. add_extra_js_url   — loads in main HA frontend
       3. Lovelace resource  — required for the dashboard card picker to
          see the card in storage-mode dashboards (most users)
+
+    Layers 1+2 happen once per HA session. Layer 3 is tracked separately and
+    retried: `lovelace` is not a dependency of this integration, so during an
+    early `async_setup` it is often not set up yet. The old code marked the
+    whole registration done before that call, so one early miss was permanent
+    and every dashboard ended up showing "Custom element doesn't exist:
+    morning-routine-card".
     """
-    if hass.data.get(_FRONTEND_FLAG):
+    card_url = hass.data.get(_CARD_URL_KEY)
+    if card_url is None:
+        version = await _read_version(hass)
+        card_url = f"{FRONTEND_BASE}/morning-routine-card.js?v={version}"
+        hass.data[_CARD_URL_KEY] = card_url
+
+    if not hass.data.get(_FRONTEND_FLAG):
+        hass.data[_FRONTEND_FLAG] = True
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(FRONTEND_BASE, FRONTEND_FS_PATH, cache_headers=False)]
+        )
+        add_extra_js_url(hass, card_url)
+        _LOGGER.info("Morning Routine frontend registered (card %s)", card_url)
+
+    await _register_card_resource(hass, card_url)
+
+
+async def _register_card_resource(hass: HomeAssistant, card_url: str) -> None:
+    """Add the Lovelace resource, retrying once HA has finished starting."""
+    if hass.data.get(_RESOURCE_FLAG):
         return
-    hass.data[_FRONTEND_FLAG] = True
+    if await _ensure_lovelace_resource(hass, card_url):
+        hass.data[_RESOURCE_FLAG] = True
+        return
+    if hass.is_running:
+        _LOGGER.warning(
+            "Could not register the Lovelace resource for the card. Add %s "
+            "manually under Settings → Dashboards → Resources (type: "
+            "JavaScript module) if the card shows as an unknown element.",
+            card_url,
+        )
+        return
 
-    version = await _read_version(hass)
-    card_url = f"{FRONTEND_BASE}/morning-routine-card.js?v={version}"
+    async def _retry(_event) -> None:
+        # Lovelace is set up by the time HA reports "started".
+        if await _ensure_lovelace_resource(hass, card_url):
+            hass.data[_RESOURCE_FLAG] = True
+        else:
+            _LOGGER.warning(
+                "Could not register the Lovelace resource for the card. Add %s "
+                "manually under Settings → Dashboards → Resources (type: "
+                "JavaScript module).",
+                card_url,
+            )
 
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(FRONTEND_BASE, FRONTEND_FS_PATH, cache_headers=False)]
-    )
-    add_extra_js_url(hass, card_url)
-    await _ensure_lovelace_resource(hass, card_url)
-    _LOGGER.info("Morning Routine frontend registered (card v%s)", version)
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _retry)
 
 
-async def _ensure_lovelace_resource(hass: HomeAssistant, url: str) -> None:
+async def _ensure_lovelace_resource(hass: HomeAssistant, url: str) -> bool:
     """Add the card URL to Lovelace storage-mode resources if missing.
 
     Without this the dashboard card picker shows the card as "still
@@ -83,17 +125,18 @@ async def _ensure_lovelace_resource(hass: HomeAssistant, url: str) -> None:
     try:
         ll = hass.data.get("lovelace")
         if ll is None:
-            return
+            return False
         # Newer HA exposes resources as ll.resources, older as ll["resources"].
         resources = getattr(ll, "resources", None)
         if resources is None and isinstance(ll, dict):
             resources = ll.get("resources")
         if resources is None:
-            return
-        # Only storage mode supports programmatic resource management.
+            return False
+        # Only storage mode supports programmatic resource management. YAML
+        # mode users manage resources themselves, so treat that as done.
         store_mode = getattr(resources, "store", None)
         if store_mode is None:
-            return
+            return True
         # Ensure resources are loaded; in modern HA this is already done at
         # startup but during an early-setup race we want to be safe.
         if hasattr(resources, "async_load") and not getattr(resources, "data", None):
@@ -111,10 +154,12 @@ async def _ensure_lovelace_resource(hass: HomeAssistant, url: str) -> None:
                 await resources.async_update_item(
                     existing["id"], {"res_type": "module", "url": url}
                 )
-            return
+            return True
         if hasattr(resources, "async_create_item"):
             await resources.async_create_item({"res_type": "module", "url": url})
             _LOGGER.info("Registered Lovelace resource: %s", url)
+            return True
+        return False
     except Exception as err:  # noqa: BLE001 - never break setup over this
         _LOGGER.warning(
             "Could not auto-register Lovelace resource for the card: %s. "
@@ -122,6 +167,7 @@ async def _ensure_lovelace_resource(hass: HomeAssistant, url: str) -> None:
             err,
             url,
         )
+        return False
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
