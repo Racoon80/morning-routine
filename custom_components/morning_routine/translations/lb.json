@@ -66,14 +66,16 @@
       },
       "holidays": {
         "title": "Vakanz",
-        "description": "Eng Period pro Zeil, z. B. `2026-07-15 .. 2026-09-14` (een eenzelt Datum = een Dag). All Schrëtt entscheet selwer, wat an der Vakanz geschitt.",
+        "description": "Eng Vakanzperiod mat der Hand setzen an/oder eng Entitéit uginn déi op fräien Deeg `on` ass. All Schrëtt entscheet selwer, wat an der Vakanz geschitt (kuck Schrëtt-Formulaire).",
         "data": {
-          "holiday_ranges": "Vakanzperioden",
+          "holiday_from": "Vakanz vun",
+          "holiday_to": "Vakanz bis",
           "holiday_entity": "Vakanz-Schalter / Kalenner (optional)"
         },
         "data_description": {
-          "holiday_ranges": "Eng pro Zeil: 2026-07-15 .. 2026-09-14 (oder 15.07.2026 - 14.09.2026), een eenzelt Datum = een Dag. Ëmmer Dag, Mount a Joer ausschreiwen — '15.07.-14.09.2026' gëtt refuséiert. Optionalt 'Label:' virdrun, '#' fänkt e Kommentar un.",
-          "holiday_entity": "Egal wéi eng Entitéit déi op engem fräien Dag 'on' ass — input_boolean, binary_sensor, Zäitplang oder e Schoulvakanz-Kalenner."
+          "holiday_from": "Béid Felder eidel loosse wann et keng Vakanz gëtt. Een eenzelt Datum zielt als deen een Dag.",
+          "holiday_to": "Leschte Vakanzdag — zielt mat.",
+          "holiday_entity": "Egal wéi eng Entitéit déi op engem fräien Dag 'on' ass — input_boolean, binary_sensor, Zäitplang oder e Kalenner."
         }
       },
       "settings": {
@@ -101,7 +103,7 @@
       "not_found": "Schrëtt existéiert net méi."
     },
     "error": {
-      "invalid_holiday_ranges": "D'Vakanzperioden konnten net gelies ginn. Eng Period pro Zeil, z. B. 2026-07-15 .. 2026-09-14"
+      "invalid_holiday_dates": "Dat Datum konnt net gelies ginn. Wiel d'Datumer mam Kalenner, oder maach béid Felder eidel."
     }
   },
   "entity": {

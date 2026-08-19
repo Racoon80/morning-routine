@@ -6,7 +6,6 @@ with sensible default steps; all real configuration happens in Options.
 from __future__ import annotations
 
 import os
-import re
 import uuid
 from datetime import date
 from typing import Any
@@ -24,8 +23,10 @@ from .const import (
     CONF_DURATION,
     CONF_HIGH_CONTRAST,
     CONF_HOLIDAY_ENTITY,
+    CONF_HOLIDAY_FROM,
     CONF_HOLIDAY_MODE,
     CONF_HOLIDAY_RANGES,
+    CONF_HOLIDAY_TO,
     CONF_IMAGE,
     CONF_LANGUAGE,
     CONF_NAME,
@@ -131,79 +132,6 @@ def _image_options(hass: HomeAssistant | None) -> list[dict[str, str]]:
                 options.append({"value": value, "label": f"📁  {stem.title()}"})
 
     return options
-
-# One period per line. A line is parsed STRICTLY and as a whole, so a
-# half-written range fails loudly instead of silently collapsing into a
-# single day — "15.07.-14.09.2026" (how school letters write it) must not
-# quietly become "14.09.2026 only".
-#   2026-07-15 .. 2026-09-14
-#   15.07.2026 - 14.09.2026        # European notation
-#   Summer: 2026-07-15 .. 2026-09-14
-#   2026-11-01                     # a single date = a single day
-_DATE_PAT = r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\.\d{1,2}\.\d{4})"
-_SEPARATOR = r"(?:\.\.\.|\.\.|-|–|—|bis|to|au)"
-_LINE_RE = re.compile(
-    rf"^(?:(?P<label>[^:]*?)\s*:\s*)?"
-    rf"(?P<first>{_DATE_PAT})"
-    rf"(?:\s*{_SEPARATOR}\s*(?P<second>{_DATE_PAT}))?$",
-    re.IGNORECASE,
-)
-
-
-def _parse_date(token: str) -> date:
-    """Parse one date token in either ISO or European notation."""
-    if "-" in token:
-        y, m, d = (int(part) for part in token.split("-"))
-    else:
-        d, m, y = (int(part) for part in token.split("."))
-    return date(y, m, d)
-
-
-def parse_holiday_ranges(text: str) -> list[dict[str, str]]:
-    """Parse the free-text holiday field into normalised ranges.
-
-    Raises ValueError on any line that is not a complete period, so the user
-    gets a form error instead of silently losing a holiday period. Text after
-    "#" is a comment, and a "Label:" prefix is kept so annotations survive a
-    round-trip through the form.
-    """
-    ranges: list[dict[str, str]] = []
-    for raw_line in (text or "").splitlines():
-        line = raw_line.split("#", 1)[0].strip()
-        if not line:
-            continue
-        match = _LINE_RE.match(line)
-        if match is None:
-            raise ValueError(raw_line)
-        try:
-            first = _parse_date(match.group("first"))
-            second = (
-                _parse_date(match.group("second")) if match.group("second") else first
-            )
-        except ValueError as err:  # e.g. 2026-13-45
-            raise ValueError(raw_line) from err
-        start_date, end_date = sorted((first, second))
-        entry = {"start": start_date.isoformat(), "end": end_date.isoformat()}
-        label = (match.group("label") or "").strip()
-        if label:
-            entry["label"] = label
-        ranges.append(entry)
-    return ranges
-
-
-def holiday_ranges_to_text(ranges: list[dict[str, str]] | None) -> str:
-    """Render stored ranges back into the editable text form."""
-    lines: list[str] = []
-    for rng in ranges or []:
-        if not isinstance(rng, dict):
-            continue
-        start = rng.get("start", "")
-        end = rng.get("end", start)
-        line = start if start == end else f"{start} .. {end}"
-        label = str(rng.get("label", "")).strip()
-        lines.append(f"{label}: {line}" if label else line)
-    return "\n".join(lines)
-
 
 DEFAULT_STEPS = [
     {
@@ -433,8 +361,17 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="settings", data_schema=schema)
 
     # ── holidays ─────────────────────────────────────────────────────────────
+    @staticmethod
+    def _coerce_date(value: Any) -> date | None:
+        """Read one date picker value. Empty -> None, garbage -> ValueError."""
+        if value in (None, ""):
+            return None
+        if isinstance(value, date):
+            return value
+        return date.fromisoformat(str(value)[:10])
+
     async def async_step_holidays(self, user_input: dict | None = None) -> FlowResult:
-        """Holiday periods + an optional entity that flags a day off.
+        """One holiday period, set by hand, plus an optional day-off entity.
 
         Either source is enough to put the routine into holiday mode; each
         step then decides for itself (see the step form) whether it still
@@ -442,37 +379,60 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         """
         opts = self.entry.options
         errors: dict[str, str] = {}
-        text_default = holiday_ranges_to_text(opts.get(CONF_HOLIDAY_RANGES, []))
-        entity_default = opts.get(CONF_HOLIDAY_ENTITY, "")
+
+        stored = [r for r in (opts.get(CONF_HOLIDAY_RANGES) or []) if isinstance(r, dict)]
+        first = stored[0] if stored else {}
+        from_value: Any = first.get("start", "")
+        to_value: Any = first.get("end", "")
+        entity_value = opts.get(CONF_HOLIDAY_ENTITY, "")
 
         if user_input is not None:
-            # Re-render the form with what the user just typed/picked, not the
-            # stored values — otherwise a typo in one date line would silently
-            # throw away the entity they just selected.
-            text_default = user_input.get(CONF_HOLIDAY_RANGES, "")
-            entity_default = user_input.get(CONF_HOLIDAY_ENTITY, entity_default)
+            # Re-render with what the user just entered, not the stored values,
+            # so nothing they picked is thrown away by an error on another field.
+            from_value = user_input.get(CONF_HOLIDAY_FROM, "")
+            to_value = user_input.get(CONF_HOLIDAY_TO, "")
+            entity_value = user_input.get(CONF_HOLIDAY_ENTITY, entity_value)
             try:
-                ranges = parse_holiday_ranges(text_default)
+                start_date = self._coerce_date(from_value)
+                end_date = self._coerce_date(to_value)
             except ValueError:
-                errors[CONF_HOLIDAY_RANGES] = "invalid_holiday_ranges"
+                errors["base"] = "invalid_holiday_dates"
             else:
+                # One date on its own means that single day; two dates are a
+                # period and are swapped if entered the wrong way round.
+                ranges: list[dict[str, str]] = []
+                if start_date or end_date:
+                    first_date = start_date or end_date
+                    last_date = end_date or start_date
+                    if first_date > last_date:
+                        first_date, last_date = last_date, first_date
+                    ranges = [
+                        {"start": first_date.isoformat(), "end": last_date.isoformat()}
+                    ]
                 new_opts = {
                     **opts,
                     CONF_STEPS: self._steps,
                     CONF_HOLIDAY_RANGES: ranges,
-                    CONF_HOLIDAY_ENTITY: user_input.get(CONF_HOLIDAY_ENTITY, ""),
+                    CONF_HOLIDAY_ENTITY: entity_value,
                 }
                 return self.async_create_entry(title="", data=new_opts)
+
+        def _suggest(value: Any) -> dict[str, Any]:
+            # DateSelector has no "empty" default, so an unset period is offered
+            # as a suggestion instead of a hard default.
+            return {"suggested_value": str(value)[:10] or None}
 
         schema = vol.Schema(
             {
                 vol.Optional(
-                    CONF_HOLIDAY_RANGES, default=text_default
-                ): selector.TextSelector(
-                    selector.TextSelectorConfig(multiline=True)
-                ),
+                    CONF_HOLIDAY_FROM, description=_suggest(from_value)
+                ): selector.DateSelector(),
                 vol.Optional(
-                    CONF_HOLIDAY_ENTITY, default=entity_default
+                    CONF_HOLIDAY_TO, description=_suggest(to_value)
+                ): selector.DateSelector(),
+                vol.Optional(
+                    CONF_HOLIDAY_ENTITY,
+                    description={"suggested_value": entity_value or None},
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(
                         domain=["input_boolean", "binary_sensor", "calendar", "schedule"]

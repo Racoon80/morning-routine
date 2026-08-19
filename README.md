@@ -37,7 +37,7 @@ When idle, the card shows the day's full schedule with status indicators. You ca
 - **Optional chime** on step start via any `media_player`
 - **Multi-language** — Deutsch · Lëtzebuergesch · English
 - **Per-step day selection** — Mon / Tue / … / Sun
-- **Holiday mode, per step** — define holiday periods (or point at a switch/calendar) and choose per step whether it *still runs*, is *paused*, or runs *only during holidays*. The school bus popup stays quiet, the evening shower doesn't.
+- **Holiday mode, per step** — set a holiday period by hand (or point at a switch/calendar) and choose per step whether it *still runs*, is *paused*, or runs *only during holidays*. The school bus popup stays quiet, the evening shower doesn't.
 - **Smart overlap handling** — when two windows overlap, the later-starting step takes focus; earlier one is marked `skipped`
 - **Snooze auto-reset** — `start_now` and `snooze` only shift the current routine; the schedule snaps back to wall-clock once it finishes
 - **Single install** — Lovelace card and resource registration are bundled with the integration; no separate setup
@@ -108,7 +108,7 @@ Settings → Devices & Services → **Morning Routine** → **Configure**
 
 Menu options:
 - Add a step / Edit a step / Remove a step
-- **Holidays** — holiday periods + optional holiday entity (see below)
+- **Holidays** — a holiday period (from / until) + optional holiday entity (see below)
 - **Sound, voice & language** — TTS service/target, chime, language, pre-warn seconds
 
 ---
@@ -119,19 +119,9 @@ School holidays shouldn't nag the kid about the bus — but the evening shower s
 
 **1. Tell the integration when it's a holiday** — Configure → **Holidays**. Two independent sources, either one is enough:
 
-- **Holiday periods** — one per line, in the text box:
+- **A holiday period you set by hand** — two date pickers, *Holiday from* and *Holiday until* (the last day counts as holiday). Leave both empty when there is no holiday; fill in only one of them to mark a single day.
 
-  ```
-  2026-07-15 .. 2026-09-14
-  Summer: 15.07.2026 - 14.09.2026    # European notation works too
-  All Saints: 2026-11-01             # a single date = a single day
-  ```
-
-  A `Label:` prefix is optional and is kept, so your periods stay readable next time you open the form. Text after `#` is a comment.
-
-  Every date needs its **full** day, month and year — the shorthand `15.07.-14.09.2026` is **rejected with an error** rather than being read as a single day. Anything else the line can't be read as gets the same error, so a mistyped period never disappears silently.
-
-- **Holiday switch / calendar** — any entity that is `on` while it's a day off: an `input_boolean` you flip for a sick day, a `binary_sensor`, a `schedule`, or a school-holiday `calendar`.
+- **Holiday switch / calendar** — any entity that is `on` while it's a day off: an `input_boolean` you flip for a sick day, a `binary_sensor`, a `schedule`, or a `calendar`.
 
 **2. Set each step's holiday behaviour** — in the step form (HA options *or* the pencil in the card):
 

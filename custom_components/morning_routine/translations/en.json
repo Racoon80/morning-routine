@@ -66,14 +66,16 @@
       },
       "holidays": {
         "title": "Holidays",
-        "description": "One period per line, e.g. `2026-07-15 .. 2026-09-14` (a single date = one day). Each step decides for itself what happens during holidays.",
+        "description": "Set one holiday period by hand, and/or point at an entity that is `on` while it's a day off. Each step decides for itself what happens during holidays (see the step form).",
         "data": {
-          "holiday_ranges": "Holiday periods",
+          "holiday_from": "Holiday from",
+          "holiday_to": "Holiday until",
           "holiday_entity": "Holiday switch / calendar (optional)"
         },
         "data_description": {
-          "holiday_ranges": "One per line: 2026-07-15 .. 2026-09-14 (or 15.07.2026 - 14.09.2026), a single date = one day. Always write the full day, month and year — '15.07.-14.09.2026' is rejected. Optional 'Label:' prefix, '#' starts a comment.",
-          "holiday_entity": "Any entity that is 'on' during a day off — input_boolean, binary_sensor, schedule or a school-holiday calendar."
+          "holiday_from": "Leave both dates empty if there is no holiday period. A single date on its own counts as that one day.",
+          "holiday_to": "Last day of the holiday — included.",
+          "holiday_entity": "Any entity that is 'on' during a day off — input_boolean, binary_sensor, schedule or a calendar."
         }
       },
       "settings": {
@@ -101,7 +103,7 @@
       "not_found": "Step no longer exists."
     },
     "error": {
-      "invalid_holiday_ranges": "Could not read the holiday periods. Use one period per line, e.g. 2026-07-15 .. 2026-09-14"
+      "invalid_holiday_dates": "That date could not be read. Pick the dates with the calendar, or clear both fields."
     }
   },
   "entity": {

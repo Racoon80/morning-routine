@@ -19,8 +19,13 @@ CONF_HIGH_CONTRAST = "high_contrast"
 # Per-step: how the step behaves while the routine is in "holiday" mode.
 CONF_HOLIDAY_MODE = "holiday_mode"
 # Integration-wide holiday sources (either one is enough to make today a holiday)
+# Stored shape stays a list of {"start", "end"} ISO dates; the options form
+# edits a single period through two date pickers.
 CONF_HOLIDAY_RANGES = "holiday_ranges"
 CONF_HOLIDAY_ENTITY = "holiday_entity"
+# Form-only field names for that single period.
+CONF_HOLIDAY_FROM = "holiday_from"
+CONF_HOLIDAY_TO = "holiday_to"
 
 # Holiday behaviour per step:
 #   always       — runs on school days AND during holidays (e.g. shower)

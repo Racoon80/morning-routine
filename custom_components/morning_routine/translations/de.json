@@ -66,14 +66,16 @@
       },
       "holidays": {
         "title": "Ferien",
-        "description": "Ein Zeitraum pro Zeile, z. B. `2026-07-15 .. 2026-09-14` (ein einzelnes Datum = ein Tag). Jeder Schritt entscheidet selbst, was in den Ferien passiert.",
+        "description": "Einen Ferienzeitraum von Hand setzen und/oder eine Entität angeben, die an freien Tagen `on` ist. Jeder Schritt entscheidet selbst, was in den Ferien passiert (siehe Schritt-Formular).",
         "data": {
-          "holiday_ranges": "Ferienzeiträume",
+          "holiday_from": "Ferien von",
+          "holiday_to": "Ferien bis",
           "holiday_entity": "Ferien-Schalter / Kalender (optional)"
         },
         "data_description": {
-          "holiday_ranges": "Einer pro Zeile: 2026-07-15 .. 2026-09-14 (oder 15.07.2026 - 14.09.2026), ein einzelnes Datum = ein Tag. Immer Tag, Monat und Jahr ausschreiben — '15.07.-14.09.2026' wird abgelehnt. Optionales 'Label:' davor, '#' beginnt einen Kommentar.",
-          "holiday_entity": "Beliebige Entität, die an einem freien Tag 'on' ist — input_boolean, binary_sensor, Zeitplan oder ein Ferienkalender."
+          "holiday_from": "Beide Felder leer lassen, wenn es keinen Ferienzeitraum gibt. Ein einzelnes Datum zählt als dieser eine Tag.",
+          "holiday_to": "Letzter Ferientag — wird mitgezählt.",
+          "holiday_entity": "Beliebige Entität, die an einem freien Tag 'on' ist — input_boolean, binary_sensor, Zeitplan oder ein Kalender."
         }
       },
       "settings": {
@@ -101,7 +103,7 @@
       "not_found": "Schritt existiert nicht mehr."
     },
     "error": {
-      "invalid_holiday_ranges": "Die Ferienzeiträume konnten nicht gelesen werden. Ein Zeitraum pro Zeile, z. B. 2026-07-15 .. 2026-09-14"
+      "invalid_holiday_dates": "Dieses Datum konnte nicht gelesen werden. Bitte über den Kalender auswählen oder beide Felder leeren."
     }
   },
   "entity": {
