@@ -123,11 +123,13 @@ School holidays shouldn't nag the kid about the bus — but the evening shower s
 
   ```
   2026-07-15 .. 2026-09-14
-  15.07.2026 - 14.09.2026     # European notation works too
-  2026-11-01                  # a single date = a single day
+  Summer: 15.07.2026 - 14.09.2026    # European notation works too
+  All Saints: 2026-11-01             # a single date = a single day
   ```
 
-  Anything else on the line (e.g. `Summer: 2026-07-15 .. 2026-09-14`) is ignored, so you can label your periods.
+  A `Label:` prefix is optional and is kept, so your periods stay readable next time you open the form. Text after `#` is a comment.
+
+  Every date needs its **full** day, month and year — the shorthand `15.07.-14.09.2026` is **rejected with an error** rather than being read as a single day. Anything else the line can't be read as gets the same error, so a mistyped period never disappears silently.
 
 - **Holiday switch / calendar** — any entity that is `on` while it's a day off: an `input_boolean` you flip for a sick day, a `binary_sensor`, a `schedule`, or a school-holiday `calendar`.
 

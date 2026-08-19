@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.11.0";
+const VERSION = "0.11.1";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 

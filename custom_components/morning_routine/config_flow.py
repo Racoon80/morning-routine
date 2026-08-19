@@ -132,50 +132,62 @@ def _image_options(hass: HomeAssistant | None) -> list[dict[str, str]]:
 
     return options
 
-# Accepts one period per line, ISO or European notation, e.g.
+# One period per line. A line is parsed STRICTLY and as a whole, so a
+# half-written range fails loudly instead of silently collapsing into a
+# single day — "15.07.-14.09.2026" (how school letters write it) must not
+# quietly become "14.09.2026 only".
 #   2026-07-15 .. 2026-09-14
-#   15.07.2026 - 14.09.2026
-#   2026-11-01                 (single day)
-_ISO_DATE = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
-_EU_DATE = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b")
+#   15.07.2026 - 14.09.2026        # European notation
+#   Summer: 2026-07-15 .. 2026-09-14
+#   2026-11-01                     # a single date = a single day
+_DATE_PAT = r"(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\.\d{1,2}\.\d{4})"
+_SEPARATOR = r"(?:\.\.\.|\.\.|-|–|—|bis|to|au)"
+_LINE_RE = re.compile(
+    rf"^(?:(?P<label>[^:]*?)\s*:\s*)?"
+    rf"(?P<first>{_DATE_PAT})"
+    rf"(?:\s*{_SEPARATOR}\s*(?P<second>{_DATE_PAT}))?$",
+    re.IGNORECASE,
+)
 
 
-def _dates_in_line(line: str) -> list[date]:
-    """Pull every date out of one line, in the order they appear."""
-    found: list[tuple[int, date]] = []
-    for m in _ISO_DATE.finditer(line):
-        y, mo, d = (int(g) for g in m.groups())
-        found.append((m.start(), date(y, mo, d)))
-    for m in _EU_DATE.finditer(line):
-        d, mo, y = (int(g) for g in m.groups())
-        found.append((m.start(), date(y, mo, d)))
-    found.sort()
-    return [d for _, d in found]
+def _parse_date(token: str) -> date:
+    """Parse one date token in either ISO or European notation."""
+    if "-" in token:
+        y, m, d = (int(part) for part in token.split("-"))
+    else:
+        d, m, y = (int(part) for part in token.split("."))
+    return date(y, m, d)
 
 
 def parse_holiday_ranges(text: str) -> list[dict[str, str]]:
-    """Parse the free-text holiday field into normalised ISO ranges.
+    """Parse the free-text holiday field into normalised ranges.
 
-    Raises ValueError on any line that does not hold exactly one or two
-    dates, so the user gets a form error instead of silently losing a
-    holiday period.
+    Raises ValueError on any line that is not a complete period, so the user
+    gets a form error instead of silently losing a holiday period. Text after
+    "#" is a comment, and a "Label:" prefix is kept so annotations survive a
+    round-trip through the form.
     """
     ranges: list[dict[str, str]] = []
     for raw_line in (text or "").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
             continue
+        match = _LINE_RE.match(line)
+        if match is None:
+            raise ValueError(raw_line)
         try:
-            dates = _dates_in_line(line)
+            first = _parse_date(match.group("first"))
+            second = (
+                _parse_date(match.group("second")) if match.group("second") else first
+            )
         except ValueError as err:  # e.g. 2026-13-45
-            raise ValueError(line) from err
-        if len(dates) == 1:
-            start = end = dates[0]
-        elif len(dates) == 2:
-            start, end = sorted(dates)
-        else:
-            raise ValueError(line)
-        ranges.append({"start": start.isoformat(), "end": end.isoformat()})
+            raise ValueError(raw_line) from err
+        start_date, end_date = sorted((first, second))
+        entry = {"start": start_date.isoformat(), "end": end_date.isoformat()}
+        label = (match.group("label") or "").strip()
+        if label:
+            entry["label"] = label
+        ranges.append(entry)
     return ranges
 
 
@@ -187,7 +199,9 @@ def holiday_ranges_to_text(ranges: list[dict[str, str]] | None) -> str:
             continue
         start = rng.get("start", "")
         end = rng.get("end", start)
-        lines.append(start if start == end else f"{start} .. {end}")
+        line = start if start == end else f"{start} .. {end}"
+        label = str(rng.get("label", "")).strip()
+        lines.append(f"{label}: {line}" if label else line)
     return "\n".join(lines)
 
 
@@ -429,9 +443,14 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         opts = self.entry.options
         errors: dict[str, str] = {}
         text_default = holiday_ranges_to_text(opts.get(CONF_HOLIDAY_RANGES, []))
+        entity_default = opts.get(CONF_HOLIDAY_ENTITY, "")
 
         if user_input is not None:
+            # Re-render the form with what the user just typed/picked, not the
+            # stored values — otherwise a typo in one date line would silently
+            # throw away the entity they just selected.
             text_default = user_input.get(CONF_HOLIDAY_RANGES, "")
+            entity_default = user_input.get(CONF_HOLIDAY_ENTITY, entity_default)
             try:
                 ranges = parse_holiday_ranges(text_default)
             except ValueError:
@@ -453,8 +472,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                     selector.TextSelectorConfig(multiline=True)
                 ),
                 vol.Optional(
-                    CONF_HOLIDAY_ENTITY,
-                    default=opts.get(CONF_HOLIDAY_ENTITY, ""),
+                    CONF_HOLIDAY_ENTITY, default=entity_default
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(
                         domain=["input_boolean", "binary_sensor", "calendar", "schedule"]

@@ -123,7 +123,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         self._steps: list[Step] = []
         self._active_idx: int | None = None
         self._snooze_offset = timedelta(0)
-        self._prewarned_idx: int | None = None
+        self._prewarned: set[tuple[date, int]] = set()
         self._reload_steps()
 
     # ── lifecycle ────────────────────────────────────────────────────────────
@@ -219,6 +219,9 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             _LOGGER.info("Routine finished — clearing snooze offset (was %s)", self._snooze_offset)
             self._snooze_offset = timedelta(0)
             now = dt_util.now()
+            # Recompute: dropping the offset can move `now` to another date,
+            # and with it into or out of a holiday range.
+            is_holiday = self._is_holiday(now)
             new_idx = self._compute_active(now, is_holiday)
 
         await self._maybe_prewarn(now, is_holiday)
@@ -347,13 +350,14 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         now: datetime,
         is_holiday: bool = False,
     ) -> None:
-        if prev_idx is not None:
+        prev_step = self._step_at(prev_idx)
+        if prev_step is not None:
             self.hass.bus.async_fire(
                 EVENT_STEP_FINISHED,
-                {"index": prev_idx, "name": self._steps[prev_idx].name},
+                {"index": prev_idx, "name": prev_step.name},
             )
-        if new_idx is not None:
-            step = self._steps[new_idx]
+        step = self._step_at(new_idx)
+        if step is not None:
             self.hass.bus.async_fire(
                 EVENT_STEP_STARTED,
                 {
@@ -365,9 +369,21 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                 },
             )
             await self._maybe_announce(step)
-        else:
-            if prev_idx is not None and self._was_last_step_today(prev_idx, now, is_holiday):
+        elif prev_step is not None:
+            # Only a step that actually ran to its end finishes the routine.
+            # Without the end check, muting the last step mid-run (parent
+            # flips the holiday switch at 07:45) would fire routine_finished
+            # and trigger reward/TV automations for a routine nobody did.
+            reached_end = now >= prev_step.end(now)
+            if reached_end and self._was_last_step_today(prev_idx, now, is_holiday):
                 self.hass.bus.async_fire(EVENT_ROUTINE_FINISHED, {})
+
+    def _step_at(self, idx: int | None) -> Step | None:
+        """Safe lookup — the in-card editor can shrink the list between ticks,
+        and an IndexError inside the tick is swallowed, freezing the card."""
+        if idx is None or not 0 <= idx < len(self._steps):
+            return None
+        return self._steps[idx]
 
     def _was_last_step_today(
         self, idx: int, now: datetime, is_holiday: bool = False
@@ -387,8 +403,9 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                 continue
             start_dt = step.start_dt(now)
             delta = (start_dt - now).total_seconds()
-            if 0 < delta <= prewarn and self._prewarned_idx != idx:
-                self._prewarned_idx = idx
+            key = (now.date(), idx)
+            if 0 < delta <= prewarn and key not in self._prewarned:
+                self._prewarned.add(key)
                 self.hass.bus.async_fire(
                     EVENT_STEP_PREWARN,
                     {
@@ -401,11 +418,12 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                 )
                 await self._announce_prewarn(step)
                 return
-        # reset prewarn marker once we leave the warning window
-        if self._prewarned_idx is not None:
-            step = self._steps[self._prewarned_idx]
-            if step.start_dt(now) <= now:
-                self._prewarned_idx = None
+        # Drop yesterday's markers so the set cannot grow without bound.
+        # A single marker used to be reused for every step, which made two
+        # steps inside the same warning window re-fire each other every tick.
+        today = now.date()
+        if any(day != today for day, _ in self._prewarned):
+            self._prewarned = {k for k in self._prewarned if k[0] == today}
 
     async def _announce_prewarn(self, step: Step) -> None:
         opts = self.entry.options
@@ -482,10 +500,14 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         # Skip over steps that are muted today (weekday filter or holiday
         # rules) — otherwise "start now" would silently do nothing when the
         # first configured step is, say, a holiday-only step.
-        first = next(
-            (s for s in self._steps if s.runs_today(now, is_holiday)),
-            self._steps[0],
-        )
+        first = next((s for s in self._steps if s.runs_today(now, is_holiday)), None)
+        if first is None:
+            # Nothing runs today (weekday filter or holiday rules). Bail out
+            # instead of shifting the clock onto a muted step: it would never
+            # activate, so the auto-reset below would never fire either and
+            # the offset would survive into the next real morning.
+            _LOGGER.info("start_now ignored — no step runs today")
+            return
         target_sim = first.start_dt(now) + timedelta(seconds=1)
         self._snooze_offset = now - target_sim
         await self.async_request_refresh()

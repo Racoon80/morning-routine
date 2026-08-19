@@ -72,7 +72,7 @@
           "holiday_entity": "Holiday switch / calendar (optional)"
         },
         "data_description": {
-          "holiday_ranges": "One per line: 2026-07-15 .. 2026-09-14  (or 15.07.2026 - 14.09.2026). A line with a single date means one day.",
+          "holiday_ranges": "One per line: 2026-07-15 .. 2026-09-14 (or 15.07.2026 - 14.09.2026), a single date = one day. Always write the full day, month and year — '15.07.-14.09.2026' is rejected. Optional 'Label:' prefix, '#' starts a comment.",
           "holiday_entity": "Any entity that is 'on' during a day off — input_boolean, binary_sensor, schedule or a school-holiday calendar."
         }
       },

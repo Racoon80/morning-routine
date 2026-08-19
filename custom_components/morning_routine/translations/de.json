@@ -72,7 +72,7 @@
           "holiday_entity": "Ferien-Schalter / Kalender (optional)"
         },
         "data_description": {
-          "holiday_ranges": "Einer pro Zeile: 2026-07-15 .. 2026-09-14  (oder 15.07.2026 - 14.09.2026). Eine Zeile mit nur einem Datum ist ein einzelner Tag.",
+          "holiday_ranges": "Einer pro Zeile: 2026-07-15 .. 2026-09-14 (oder 15.07.2026 - 14.09.2026), ein einzelnes Datum = ein Tag. Immer Tag, Monat und Jahr ausschreiben — '15.07.-14.09.2026' wird abgelehnt. Optionales 'Label:' davor, '#' beginnt einen Kommentar.",
           "holiday_entity": "Beliebige Entität, die an einem freien Tag 'on' ist — input_boolean, binary_sensor, Zeitplan oder ein Ferienkalender."
         }
       },
