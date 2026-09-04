@@ -11,7 +11,7 @@ from datetime import date
 
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
@@ -27,7 +27,7 @@ from .const import (
     SERVICE_SNOOZE,
     SERVICE_START_NOW,
 )
-from .coordinator import MorningRoutineCoordinator
+from .coordinator import MorningRoutineConfigEntry, MorningRoutineCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,12 +170,26 @@ async def _ensure_lovelace_resource(hass: HomeAssistant, url: str) -> bool:
         return False
 
 
+def _loaded_entries(hass: HomeAssistant) -> list[MorningRoutineConfigEntry]:
+    """Every loaded entry of this integration.
+
+    The coordinators used to live in `hass.data[DOMAIN]`; they now sit on the
+    entries themselves as `runtime_data`, so this is how the services reach
+    them. Single-instance in practice, but the services still fan out.
+    """
+    return [
+        entry
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if entry.state is ConfigEntryState.LOADED
+    ]
+
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     await _register_frontend(hass)
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: MorningRoutineConfigEntry) -> bool:
     """Set up Morning Routine from a config entry."""
     # Defensive: also register here in case async_setup didn't run for some reason.
     await _register_frontend(hass)
@@ -183,26 +197,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = MorningRoutineCoordinator(hass, entry)
     await coordinator.async_start()
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def _skip_step(call) -> None:
-        for c in hass.data[DOMAIN].values():
-            await c.async_skip_step()
+        for target in _loaded_entries(hass):
+            await target.runtime_data.async_skip_step()
 
     async def _start_now(call) -> None:
-        for c in hass.data[DOMAIN].values():
-            await c.async_start_now()
+        for target in _loaded_entries(hass):
+            await target.runtime_data.async_start_now()
 
     async def _snooze(call) -> None:
         minutes = call.data.get("minutes", 5)
-        for c in hass.data[DOMAIN].values():
-            await c.async_snooze(minutes)
+        for target in _loaded_entries(hass):
+            await target.runtime_data.async_snooze(minutes)
 
     async def _reset_snooze(call) -> None:
-        for c in hass.data[DOMAIN].values():
-            await c.async_reset_snooze()
+        for target in _loaded_entries(hass):
+            await target.runtime_data.async_reset_snooze()
 
     async def _set_holiday(call) -> None:
         """Set or clear the manual holiday period. Used by the card's dialog.
@@ -232,10 +246,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 first, last = last, first
             ranges = [{"start": first.isoformat(), "end": last.isoformat()}]
 
-        for eid in list(hass.data[DOMAIN].keys()):
-            target_entry = hass.config_entries.async_get_entry(eid)
-            if target_entry is None:
-                continue
+        for target_entry in _loaded_entries(hass):
             hass.config_entries.async_update_entry(
                 target_entry,
                 options={**target_entry.options, CONF_HOLIDAY_RANGES: ranges},
@@ -287,10 +298,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             })
 
         # Apply to all entries (single-instance integration, but loop for safety)
-        for eid in list(hass.data[DOMAIN].keys()):
-            target_entry = hass.config_entries.async_get_entry(eid)
-            if target_entry is None:
-                continue
+        for target_entry in _loaded_entries(hass):
             new_options = {**target_entry.options, CONF_STEPS: cleaned}
             hass.config_entries.async_update_entry(target_entry, options=new_options)
 
@@ -306,17 +314,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _async_reload(hass: HomeAssistant, entry: MorningRoutineConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: MorningRoutineConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        coordinator: MorningRoutineCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        await coordinator.async_stop()
-    if not hass.data[DOMAIN]:
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        # Entry stays loaded, so keep the coordinator and the services running.
+        return False
+
+    await entry.runtime_data.async_stop()
+
+    # The services are shared by every entry and may only go once the last one
+    # is gone. Exclude this entry by hand rather than trusting its state: HA
+    # marks it UNLOAD_IN_PROGRESS here, but that is not ours to rely on.
+    if not [e for e in _loaded_entries(hass) if e.entry_id != entry.entry_id]:
         for svc in (
             SERVICE_SKIP_STEP,
             SERVICE_START_NOW,
@@ -326,4 +339,4 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_RESET_SNOOZE,
         ):
             hass.services.async_remove(DOMAIN, svc)
-    return unload_ok
+    return True

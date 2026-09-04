@@ -12,9 +12,8 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, OptionsFlow
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
 from .const import (
@@ -174,7 +173,7 @@ DEFAULT_STEPS = [
 class MorningRoutineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
 
@@ -222,7 +221,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         self._editing_id: str | None = None
 
     # ── menu ─────────────────────────────────────────────────────────────────
-    async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
             menu_options=[
@@ -236,7 +235,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         )
 
     # ── add ──────────────────────────────────────────────────────────────────
-    async def async_step_add_step(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_add_step(self, user_input: dict | None = None) -> ConfigFlowResult:
         if user_input is not None:
             user_input["id"] = uuid.uuid4().hex
             self._steps.append(user_input)
@@ -244,7 +243,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="add_step", data_schema=self._step_schema())
 
     # ── edit ─────────────────────────────────────────────────────────────────
-    async def async_step_edit_step(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_edit_step(self, user_input: dict | None = None) -> ConfigFlowResult:
         if not self._steps:
             return self.async_abort(reason="no_steps")
         if user_input is not None:
@@ -267,7 +266,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
             ),
         )
 
-    async def async_step_edit_form(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_edit_form(self, user_input: dict | None = None) -> ConfigFlowResult:
         current = next((s for s in self._steps if s["id"] == self._editing_id), None)
         if current is None:
             return self.async_abort(reason="not_found")
@@ -280,7 +279,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         )
 
     # ── remove ───────────────────────────────────────────────────────────────
-    async def async_step_remove_step(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_remove_step(self, user_input: dict | None = None) -> ConfigFlowResult:
         if not self._steps:
             return self.async_abort(reason="no_steps")
         if user_input is not None:
@@ -304,7 +303,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         )
 
     # ── global settings ──────────────────────────────────────────────────────
-    async def async_step_settings(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_settings(self, user_input: dict | None = None) -> ConfigFlowResult:
         opts = self.entry.options
         if user_input is not None:
             new_opts = {**opts, **user_input, CONF_STEPS: self._steps}
@@ -370,7 +369,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
             return value
         return date.fromisoformat(str(value)[:10])
 
-    async def async_step_holidays(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_holidays(self, user_input: dict | None = None) -> ConfigFlowResult:
         """One holiday period, set by hand, plus an optional day-off entity.
 
         Either source is enough to put the routine into holiday mode; each
@@ -445,7 +444,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         )
 
     # ── display & accessibility ──────────────────────────────────────────────
-    async def async_step_display(self, user_input: dict | None = None) -> FlowResult:
+    async def async_step_display(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Visual / accessibility settings, surfaced as its own menu entry so
         the high-contrast toggle is discoverable instead of buried under the
         sound-and-voice form."""
@@ -464,7 +463,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="display", data_schema=schema)
 
     # ── helpers ──────────────────────────────────────────────────────────────
-    async def _save_and_exit(self) -> FlowResult:
+    async def _save_and_exit(self) -> ConfigFlowResult:
         new_opts = {**self.entry.options, CONF_STEPS: self._steps}
         return self.async_create_entry(title="", data=new_opts)
 

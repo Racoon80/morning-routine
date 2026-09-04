@@ -116,7 +116,7 @@ class Step:
 class MorningRoutineCoordinator(DataUpdateCoordinator):
     """Tracks the active step and progress, fires events on transitions."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: MorningRoutineConfigEntry) -> None:
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=TICK_IDLE)
         self.entry = entry
         self._unsub_tick = None
@@ -555,3 +555,9 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         # That means simulated time should appear EARLIER → offset increases.
         self._snooze_offset += timedelta(minutes=minutes)
         await self.async_request_refresh()
+
+
+# The coordinator lives on the entry itself (HA 2024.6+ `runtime_data`), so the
+# entry type carries it. Declared here rather than in __init__.py because both
+# __init__.py and sensor.py need it and coordinator.py imports neither.
+MorningRoutineConfigEntry = ConfigEntry[MorningRoutineCoordinator]

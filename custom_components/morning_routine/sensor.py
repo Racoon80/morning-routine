@@ -4,10 +4,15 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+try:  # HA 2025.2+
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+except ImportError:  # HA < 2025.2 — same callable, older name
+    from homeassistant.helpers.entity_platform import (
+        AddEntitiesCallback as AddConfigEntryEntitiesCallback,
+    )
 
 from .const import (
     ATTR_HOLIDAY,
@@ -19,17 +24,16 @@ from .const import (
     ATTR_TIME_LEFT,
     CONF_HIGH_CONTRAST,
     CONF_HOLIDAY_RANGES,
-    DOMAIN,
 )
-from .coordinator import MorningRoutineCoordinator
+from .coordinator import MorningRoutineConfigEntry, MorningRoutineCoordinator
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    entry: MorningRoutineConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    coordinator: MorningRoutineCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     async_add_entities(
         [
             ActiveStepSensor(coordinator, entry),
@@ -43,7 +47,9 @@ class _Base(CoordinatorEntity[MorningRoutineCoordinator], SensorEntity):
     _attr_has_entity_name = True
     _suffix: str = ""
 
-    def __init__(self, coordinator: MorningRoutineCoordinator, entry: ConfigEntry) -> None:
+    def __init__(
+        self, coordinator: MorningRoutineCoordinator, entry: MorningRoutineConfigEntry
+    ) -> None:
         super().__init__(coordinator)
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{self._suffix}"
