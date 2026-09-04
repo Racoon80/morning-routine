@@ -15,6 +15,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.loader import async_get_integration
 
 from .const import (
@@ -32,6 +33,11 @@ from .coordinator import MorningRoutineConfigEntry, MorningRoutineCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+# There is nothing to configure in YAML — `async_setup` exists only to get the
+# card registered before any config entry is loaded. hassfest insists that an
+# integration with `async_setup` declares which of the two it is.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 FRONTEND_BASE = "/morning_routine_frontend"
 FRONTEND_FS_PATH = os.path.join(os.path.dirname(__file__), "frontend")
