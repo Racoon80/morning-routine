@@ -70,7 +70,7 @@ The integration setting flows to every card via the `ui_high_contrast` sensor at
 
 ### Requirements
 
-- Home Assistant **2024.6** or newer (uses the modern async loader for manifest reads — older versions will still work but log a deprecation warning).
+- Home Assistant **2024.7** or newer. The integration serves its card through `async_register_static_paths`, which arrived in 2024.7 — on anything older the integration fails to load.
 
 ### Via HACS (recommended)
 
@@ -262,7 +262,7 @@ The integration recognises its own entry afterwards and only keeps the version q
 
 **The card still looks like the old version after an update**
 
-Browsers cache the script. Restart HA (the URL gets a fresh `?v=` on every version), then hard-refresh — on a wall tablet, clear the browser cache or restart the kiosk app. The console prints the version it actually loaded: `MORNING-ROUTINE-CARD v0.11.4`.
+Browsers cache the script. Restart HA (the URL gets a fresh `?v=` on every version), then hard-refresh — on a wall tablet, clear the browser cache or restart the kiosk app. The console prints the version it actually loaded: `MORNING-ROUTINE-CARD v0.11.5`.
 
 **Configure has no “Holidays” entry, or a step form has no holiday field**
 

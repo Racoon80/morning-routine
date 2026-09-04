@@ -5,3 +5,7 @@ __pycache__/
 .vscode/
 .idea/
 *.log
+
+# Local tooling, not part of the integration
+.mcp.json
+CLAUDE.md
