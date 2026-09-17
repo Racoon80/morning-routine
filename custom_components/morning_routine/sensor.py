@@ -57,7 +57,10 @@ class _Base(CoordinatorEntity[MorningRoutineCoordinator], SensorEntity):
         # Existing installs keep their old (translated) entity_id thanks to the
         # entity registry — only fresh installs benefit. The card finds either
         # version via the _mr_role marker attribute, so this is just for tidiness.
-        self._attr_suggested_object_id = f"morning_routine_{self._suffix}"
+        # Setting entity_id before the entity is added is how an integration
+        # suggests one; current HA ignores `_attr_suggested_object_id`, which
+        # left fresh installs with a bare `sensor.active_step`.
+        self.entity_id = f"sensor.morning_routine_{self._suffix}"
 
 
 class ActiveStepSensor(_Base):

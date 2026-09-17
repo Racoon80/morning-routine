@@ -240,7 +240,9 @@ class MorningRoutineOptionsFlow(OptionsFlow):
             user_input["id"] = uuid.uuid4().hex
             self._steps.append(user_input)
             return await self._save_and_exit()
-        return self.async_show_form(step_id="add_step", data_schema=self._step_schema())
+        return self.async_show_form(
+            step_id="add_step", data_schema=await self._step_schema()
+        )
 
     # ── edit ─────────────────────────────────────────────────────────────────
     async def async_step_edit_step(self, user_input: dict | None = None) -> ConfigFlowResult:
@@ -275,7 +277,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
             return await self._save_and_exit()
         return self.async_show_form(
             step_id="edit_form",
-            data_schema=self._step_schema(defaults=current),
+            data_schema=await self._step_schema(defaults=current),
         )
 
     # ── remove ───────────────────────────────────────────────────────────────
@@ -307,6 +309,11 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         opts = self.entry.options
         if user_input is not None:
             new_opts = {**opts, **user_input, CONF_STEPS: self._steps}
+            # The entity pickers only send a key when something is picked, so a
+            # missing key means the user cleared it.
+            for key in (CONF_TTS_TARGET, "chime_entity"):
+                if not user_input.get(key):
+                    new_opts.pop(key, None)
             return self.async_create_entry(title="", data=new_opts)
         schema = vol.Schema(
             {
@@ -326,8 +333,12 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                 vol.Optional(
                     CONF_TTS_ENABLED, default=opts.get(CONF_TTS_ENABLED, False)
                 ): bool,
+                # Entity pickers take a suggestion, not a default: an empty
+                # default is not a valid entity ID and fails validation, so the
+                # form could not be saved without picking a media player.
                 vol.Optional(
-                    CONF_TTS_TARGET, default=opts.get(CONF_TTS_TARGET, "")
+                    CONF_TTS_TARGET,
+                    description={"suggested_value": opts.get(CONF_TTS_TARGET) or None},
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="media_player")
                 ),
@@ -338,7 +349,8 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                     CONF_CHIME_ENABLED, default=opts.get(CONF_CHIME_ENABLED, True)
                 ): bool,
                 vol.Optional(
-                    "chime_entity", default=opts.get("chime_entity", "")
+                    "chime_entity",
+                    description={"suggested_value": opts.get("chime_entity") or None},
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="media_player")
                 ),
@@ -390,7 +402,8 @@ class MorningRoutineOptionsFlow(OptionsFlow):
             # so nothing they picked is thrown away by an error on another field.
             from_value = user_input.get(CONF_HOLIDAY_FROM, "")
             to_value = user_input.get(CONF_HOLIDAY_TO, "")
-            entity_value = user_input.get(CONF_HOLIDAY_ENTITY, entity_value)
+            # A missing key means the picker was cleared, not left untouched.
+            entity_value = user_input.get(CONF_HOLIDAY_ENTITY, "")
             try:
                 start_date = self._coerce_date(from_value)
                 end_date = self._coerce_date(to_value)
@@ -467,8 +480,13 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         new_opts = {**self.entry.options, CONF_STEPS: self._steps}
         return self.async_create_entry(title="", data=new_opts)
 
-    def _step_schema(self, defaults: dict | None = None) -> vol.Schema:
+    async def _step_schema(self, defaults: dict | None = None) -> vol.Schema:
         d = defaults or {}
+        # Listing the image folders is disk I/O, which HA reports as a
+        # blocking call when it runs on the event loop.
+        image_options = await self.hass.async_add_executor_job(
+            _image_options, self.hass
+        )
         return vol.Schema(
             {
                 vol.Required(CONF_NAME, default=d.get(CONF_NAME, "")): str,
@@ -488,7 +506,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                     CONF_IMAGE, default=d.get(CONF_IMAGE, "☕")
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=_image_options(self.hass),
+                        options=image_options,
                         custom_value=True,
                         mode=selector.SelectSelectorMode.DROPDOWN,
                         sort=False,
