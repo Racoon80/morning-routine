@@ -1835,6 +1835,29 @@ if (!customElements.get("morning-routine-card-editor")) {
   customElements.define("morning-routine-card-editor", MorningRoutineCardEditor);
 }
 
+// add_extra_js_url runs this module early, before the HA frontend swaps
+// window.customElements for the scoped-registry polyfill. The define above then
+// sits in the browser's own registry, which the polyfill's get() does not see,
+// so Lovelace reports "Custom element doesn't exist" on every dashboard. Watch
+// for the swap for a while and register a subclass on the new registry.
+// (Seen on HA 2026.9, card v0.11.5.)
+let registryChecks = 0;
+const registryWatch = setInterval(() => {
+  for (const [tag, cls] of [
+    ["morning-routine-card", MorningRoutineCard],
+    ["morning-routine-card-editor", MorningRoutineCardEditor],
+  ]) {
+    if (!customElements.get(tag)) {
+      try {
+        customElements.define(tag, class extends cls {});
+      } catch (err) {
+        console.warn(`[morning-routine-card] could not register ${tag}:`, err);
+      }
+    }
+  }
+  if (++registryChecks >= 60) clearInterval(registryWatch); // 30 s
+}, 500);
+
 window.customCards = window.customCards || [];
 if (!window.customCards.find((c) => c.type === "morning-routine-card")) {
   window.customCards.push({
