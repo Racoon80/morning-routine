@@ -244,6 +244,27 @@ The card displays a compact daily schedule when no step is active and takes over
 | `morning_routine.set_steps` | Replace the entire step list. Used internally by the in-card editor; you can call it from automations to switch between routine variants. |
 | `morning_routine.set_holiday` | Set the holiday period (`start`, `end` as `YYYY-MM-DD`) or clear it by calling it without dates. Used by the card's 🏖️ dialog. |
 
+Each step in `set_steps` takes `name`, `start` (`HH:MM`), `duration` (minutes), `image`, `days`, `holiday_mode`, and optionally the speech fields `tts_text`, `tts_prewarn_text` and `tts_prewarn_seconds` (see [Speech](#speech)). Empty speech fields are dropped:
+
+```yaml
+action: morning_routine.set_steps
+data:
+  steps:
+    - name: Kaffee
+      start: "07:30"
+      duration: 5
+      image: "☕"
+      days: [mon, tue, wed, thu, fri]
+      tts_text: "Gudde Moien! Elo ass {name}. Du hues {minutes} Minutten."
+      tts_prewarn_text: "An {in_minutes} Minutten gëtt et {name}."
+      tts_prewarn_seconds: 120
+    - name: Bus
+      start: "07:45"
+      duration: 10
+      image: "🚌"
+      holiday_mode: skip_holiday
+```
+
 ---
 
 ## Events
@@ -267,7 +288,7 @@ Wire these to lights, music, blinds, anything.
 | `sensor.<progress>` | 0–100 % | — |
 | `sensor.<time_left>` | seconds | — |
 
-Entity slugs depend on your HA UI language (e.g. `sensor.aktiver_schritt` in DE). The card auto-discovers them via the `_mr_role` marker, so you never need to hard-code the entity ID.
+New installs get `sensor.morning_routine_active_step`, `…_progress` and `…_time_left`. Installs from before v0.11.6 keep the IDs they already had, which follow the HA UI language (e.g. `sensor.aktiver_schritt` in DE) — updating never renames them. The card auto-discovers the sensor via the `_mr_role` marker, so you never need to hard-code the entity ID.
 
 ---
 
@@ -286,6 +307,17 @@ Mount a wall tablet (Fire HD, iPad, old phone …) with **Fully Kiosk Browser** 
 ---
 
 ## Troubleshooting
+
+**Nothing is spoken**
+
+- Configure → *Sound, voice & language*: **Speak** must be on and at least one speaker picked.
+- With a **TTS engine** set, try the same engine and speaker under Developer tools → Actions → `tts.speak`. A **voice** the engine does not know can make it stay silent — clear the field to test.
+- Without an engine, the **TTS service** must exist (e.g. `tts.cloud_say` only with Home Assistant Cloud).
+- A step's text with a template mistake is skipped: Settings → System → Logs, search for `morning_routine`.
+
+**Every step is announced twice**
+
+Something else speaks on the `morning_routine_step_started` event too — usually an older automation from before v0.12.0. Switch either that automation or the integration's **Speak** off.
 
 **The dashboard shows a red card: “Custom element doesn't exist: morning-routine-card”**
 
