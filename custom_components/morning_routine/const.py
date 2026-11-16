@@ -16,6 +16,22 @@ CONF_DAYS = "days"
 CONF_LANGUAGE = "language"
 CONF_PREWARN_SECONDS = "prewarn_seconds"
 CONF_HIGH_CONTRAST = "high_contrast"
+CONF_TTS_SERVICE = "tts_service"
+# Speech through a TTS entity (tts.speak). When set it replaces the legacy
+# "<domain>.<service>" call in CONF_TTS_SERVICE.
+CONF_TTS_ENGINE = "tts_engine"
+CONF_TTS_VOICE = "tts_voice"
+# Integration-wide fallback texts for steps that have none of their own.
+CONF_TTS_DEFAULT_TEXT = "tts_default_text"
+CONF_TTS_DEFAULT_PREWARN_TEXT = "tts_default_prewarn_text"
+# Per-step texts. Plain text with {name} {minutes} {start} {next} placeholders,
+# or a Home Assistant template when it contains {{ or {%.
+CONF_TTS_TEXT = "tts_text"
+CONF_TTS_PREWARN_TEXT = "tts_prewarn_text"
+# Per-step lead time for the spoken pre-announcement. Missing = use the
+# integration-wide CONF_PREWARN_SECONDS, 0 = no pre-announcement for this step.
+CONF_TTS_PREWARN_SECONDS = "tts_prewarn_seconds"
+DEFAULT_TTS_SERVICE = "tts.cloud_say"
 # Per-step: how the step behaves while the routine is in "holiday" mode.
 CONF_HOLIDAY_MODE = "holiday_mode"
 # Integration-wide holiday sources (either one is enough to make today a holiday)

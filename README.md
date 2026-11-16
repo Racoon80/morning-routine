@@ -34,7 +34,7 @@ When idle, the card shows the day's full schedule with status indicators. You ca
 - **60 fps smoothness** — client-side `requestAnimationFrame` loop drives the bar; server ticks every second
 - **Auto-discovery** — the card finds its sensor automatically, works in any HA language
 - **Self-closing overlay** — full-screen during a step, idle card otherwise; no Browser Mod needed
-- **Optional TTS** with pre-step warning (60 s default) — works with Luxembourgish TTS, Cloud TTS, etc.
+- **Optional speech** with your own text per step — at the start and, if you want, a set time before it. Placeholders or full Home Assistant templates; any TTS engine (`tts.speak`, with a voice) or the classic `tts.*_say` services
 - **Optional chime** on step start via any `media_player`
 - **Multi-language** — Deutsch · Lëtzebuergesch · English
 - **Per-step day selection** — Mon / Tue / … / Sun
@@ -100,7 +100,7 @@ When the card is on a dashboard:
 
 - Tap the **✏️ pencil** on any schedule row to edit that step
 - Tap **＋ Add step** at the bottom of the schedule to add a new one
-- The modal lets you set name, start time, duration, picture (emoji grid + custom URL field) and active days
+- The modal lets you set name, start time, duration, picture (emoji grid + custom URL field), active days and — under **🔊 Voice** — what is said for this step
 - **Delete** is in the modal when editing
 
 ### B. From HA settings
@@ -110,7 +110,43 @@ Settings → Devices & Services → **Morning Routine** → **Configure**
 Menu options:
 - Add a step / Edit a step / Remove a step
 - **Holidays** — a holiday period (from / until) + optional holiday entity (see below) — or set the period straight from the card's 🏖️ button
-- **Sound, voice & language** — TTS service/target, chime, language, pre-warn seconds
+- **Sound, voice & language** — speakers, TTS engine and voice, default texts, chime, language, pre-warn seconds
+
+---
+
+## Speech
+
+Switch on **Speak** under Configure → *Sound, voice & language* and pick one or more speakers. Then choose how to speak:
+
+- **TTS engine** (recommended) — any `tts.*` entity, e.g. `tts.piper` or `tts.home_assistant_cloud`. Speaks through `tts.speak`, so you can also set a **voice** (for example `marylux`).
+- Leave the engine empty to use the classic **TTS service** field instead (`tts.cloud_say`, `tts.google_translate_say`, …).
+
+What is said, per step (✏️ pencil → **🔊 Voice**, or Configure → Edit a step):
+
+| Field | When | Empty means |
+|---|---|---|
+| Say at the start | the moment the step begins | the default text from Settings, else `Elo: {name}` |
+| Say beforehand | a set time before the step | the default pre-warn text from Settings, else `Soon: {name}` |
+| How long before | seconds, per step | the pre-warn seconds from Settings; `0` = nothing before this step |
+
+Texts can use these placeholders:
+
+| Placeholder | Value |
+|---|---|
+| `{name}` | step name (in the routine's language) |
+| `{minutes}` / `{duration}` | step length in minutes / seconds |
+| `{start}` / `{end}` | `07:30` / `07:35` |
+| `{next}` / `{next_start}` | the next step today and its start time (empty after the last one) |
+| `{in_minutes}` / `{in_seconds}` | time until the step — only in the "beforehand" text |
+
+A text containing `{{ … }}` or `{% … %}` is rendered as a Home Assistant template instead, with the same names as variables — handy for plurals or day-dependent lines:
+
+```jinja
+Luca, elo ass {{ name }}. Du hues {{ minutes }} {{ 'Minutt' if minutes == 1 else 'Minutten' }}.
+{% if now().weekday() == 4 %} Haut ass Freideg!{% endif %}
+```
+
+A template with a mistake is skipped (and logged) rather than read out. The `morning_routine_step_*` events still fire as before, so automations that speak on their own keep working — switch one of the two off, or the step is announced twice.
 
 ---
 
@@ -263,7 +299,7 @@ The integration recognises its own entry afterwards and only keeps the version q
 
 **The card still looks like the old version after an update**
 
-Browsers cache the script. Restart HA (the URL gets a fresh `?v=` on every version), then hard-refresh — on a wall tablet, clear the browser cache or restart the kiosk app. The console prints the version it actually loaded: `MORNING-ROUTINE-CARD v0.11.6`.
+Browsers cache the script. Restart HA (the URL gets a fresh `?v=` on every version), then hard-refresh — on a wall tablet, clear the browser cache or restart the kiosk app. The console prints the version it actually loaded: `MORNING-ROUTINE-CARD v0.12.0`.
 
 **Configure has no “Holidays” entry, or a step form has no holiday field**
 
@@ -295,6 +331,7 @@ Not promised, just open. PRs welcome.
 - Multiple holiday periods at once (today it is one period plus the optional entity)
 - Drag-and-drop reorder of steps in the modal
 - Per-step custom sound (bundled or URL)
+- A spoken line when the routine is finished
 - Reward screen at the end of the routine ("3 stars!")
 - Donetick / chore-tracker integration on `routine_finished`
 - Lottie-based animated step icons

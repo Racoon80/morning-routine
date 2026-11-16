@@ -20,6 +20,9 @@ from homeassistant.loader import async_get_integration
 
 from .const import (
     CONF_HOLIDAY_RANGES,
+    CONF_TTS_PREWARN_SECONDS,
+    CONF_TTS_PREWARN_TEXT,
+    CONF_TTS_TEXT,
     DOMAIN,
     SERVICE_RESET_SNOOZE,
     SERVICE_SET_HOLIDAY,
@@ -28,7 +31,11 @@ from .const import (
     SERVICE_SNOOZE,
     SERVICE_START_NOW,
 )
-from .coordinator import MorningRoutineConfigEntry, MorningRoutineCoordinator
+from .coordinator import (
+    MorningRoutineConfigEntry,
+    MorningRoutineCoordinator,
+    parse_prewarn_seconds,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -292,7 +299,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MorningRoutineConfigEntr
             holiday_mode = s.get("holiday_mode", DEFAULT_HOLIDAY_MODE)
             if holiday_mode not in HOLIDAY_MODES:
                 holiday_mode = DEFAULT_HOLIDAY_MODE
-            cleaned.append({
+            step = {
                 "id": sid,
                 "name": str(s.get("name") or "").strip() or "Step",
                 "name_lb": str(s.get("name_lb") or s.get("name") or "").strip(),
@@ -301,7 +308,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: MorningRoutineConfigEntr
                 "image": str(s.get("image") or "☕"),
                 "days": days,
                 "holiday_mode": holiday_mode,
-            })
+            }
+            # Spoken texts are optional; only stored when set, so steps
+            # without speech keep the old shape.
+            for key in (CONF_TTS_TEXT, CONF_TTS_PREWARN_TEXT):
+                text = str(s.get(key) or "").strip()[:1000]
+                if text:
+                    step[key] = text
+            lead = parse_prewarn_seconds(s.get(CONF_TTS_PREWARN_SECONDS))
+            if lead is not None:
+                step[CONF_TTS_PREWARN_SECONDS] = lead
+            cleaned.append(step)
 
         # Apply to all entries (single-instance integration, but loop for safety)
         for target_entry in _loaded_entries(hass):

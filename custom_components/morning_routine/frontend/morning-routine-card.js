@@ -14,7 +14,7 @@
  *   active_step_entity: sensor.xxx    (optional — auto-discovered)
  */
 
-const VERSION = "0.11.6";
+const VERSION = "0.12.0";
 
 const isEmoji = (val) => typeof val === "string" && val && !val.includes("/");
 
@@ -453,6 +453,16 @@ class MorningRoutineCard extends HTMLElement {
     $("emoji-preview").textContent = isEmoji(formState.image) ? formState.image : "🖼️";
     if (!editing) $("delete-btn").style.display = "none";
 
+    // Spoken texts — optional, so the section stays closed unless used.
+    $("f-tts-text").value = formState.tts_text || "";
+    $("f-tts-prewarn-text").value = formState.tts_prewarn_text || "";
+    $("f-tts-prewarn-seconds").value =
+      formState.tts_prewarn_seconds ?? "";
+    $("f-tts-prewarn-seconds").placeholder = L.ttsPrewarnDefault;
+    if (formState.tts_text || formState.tts_prewarn_text || formState.tts_prewarn_seconds != null) {
+      $("tts-section").open = true;
+    }
+
     // Days chips
     const daysWrap = $("f-days");
     const dayLabels = L.dayShort;
@@ -509,6 +519,11 @@ class MorningRoutineCard extends HTMLElement {
     modal.querySelector('label[for="f-image"]').textContent = L.fieldImage;
     $("lbl-days").textContent = L.fieldDays;
     $("lbl-holiday").textContent = L.fieldHoliday;
+    $("lbl-tts").textContent = "🔊 " + L.ttsSection;
+    modal.querySelector('label[for="f-tts-text"]').textContent = L.ttsText;
+    modal.querySelector('label[for="f-tts-prewarn-text"]').textContent = L.ttsPrewarnText;
+    modal.querySelector('label[for="f-tts-prewarn-seconds"]').textContent = L.ttsPrewarnSeconds;
+    $("tts-hint").textContent = L.ttsHint;
     $("save-btn").textContent = L.save;
     $("cancel-btn-2").textContent = L.cancel;
     $("delete-btn").innerHTML = "🗑️ " + L.delete;
@@ -537,6 +552,13 @@ class MorningRoutineCard extends HTMLElement {
         image: $("f-image").value || "☕",
         days: days.length ? days : ["mon","tue","wed","thu","fri","sat","sun"],
         holiday_mode: holWrap.querySelector(".mode-chip.on")?.dataset.mode || "always",
+        // Empty values are sent on purpose: they overwrite what the step had,
+        // and the integration drops them instead of storing them.
+        tts_text: $("f-tts-text").value.trim(),
+        tts_prewarn_text: $("f-tts-prewarn-text").value.trim(),
+        tts_prewarn_seconds: $("f-tts-prewarn-seconds").value === ""
+          ? null
+          : Math.max(0, Math.min(3600, parseInt($("f-tts-prewarn-seconds").value, 10) || 0)),
       };
       const newSteps = [...currentSteps];
       if (editing) {
@@ -904,6 +926,12 @@ const LABELS = {
     fieldDays: "Aktive Tage",
     fieldHoliday: "In den Ferien",
     holidayModes: { always: "läuft auch", skip_holiday: "pausiert", only_holiday: "nur Ferien" },
+    ttsSection: "Ansage",
+    ttsText: "Beim Start sagen",
+    ttsPrewarnText: "Vorher sagen",
+    ttsPrewarnSeconds: "Wie lange vorher (Sekunden)",
+    ttsPrewarnDefault: "wie in den Einstellungen",
+    ttsHint: "Leer = Standardtext aus den Einstellungen. Platzhalter: {name}, {minutes}, {start}, {end}, {next}, vorher auch {in_minutes}. Mit {{ … }} wird der Text ein Home-Assistant-Template. Wird nur gesprochen, wenn die Sprachausgabe in den Einstellungen an ist.",
     holidayBadge: "Ferien",
     holidayBtn: "Ferien setzen",
     holidayTitle: "Ferien",
@@ -936,6 +964,12 @@ const LABELS = {
     fieldDays: "Aktiv Deeg",
     fieldHoliday: "An der Vakanz",
     holidayModes: { always: "leeft och", skip_holiday: "Paus", only_holiday: "nëmme Vakanz" },
+    ttsSection: "Ukënnegung",
+    ttsText: "Beim Start soen",
+    ttsPrewarnText: "Virdrun soen",
+    ttsPrewarnSeconds: "Wéi laang virdrun (Sekonnen)",
+    ttsPrewarnDefault: "wéi an den Astellungen",
+    ttsHint: "Eidel = Standardtext aus den Astellungen. Platzhalter: {name}, {minutes}, {start}, {end}, {next}, virdrun och {in_minutes}. Mat {{ … }} gëtt den Text en Home-Assistant-Template. Gëtt just gesot, wann d'Sproochausgab an den Astellungen un ass.",
     holidayBadge: "Vakanz",
     holidayBtn: "Vakanz setzen",
     holidayTitle: "Vakanz",
@@ -968,6 +1002,12 @@ const LABELS = {
     fieldDays: "Active days",
     fieldHoliday: "During holidays",
     holidayModes: { always: "still runs", skip_holiday: "paused", only_holiday: "holidays only" },
+    ttsSection: "Voice",
+    ttsText: "Say at the start",
+    ttsPrewarnText: "Say beforehand",
+    ttsPrewarnSeconds: "How long before (seconds)",
+    ttsPrewarnDefault: "as in Settings",
+    ttsHint: "Empty = the default text from Settings. Placeholders: {name}, {minutes}, {start}, {end}, {next}, and {in_minutes} beforehand. With {{ … }} the text becomes a Home Assistant template. Only spoken when speech is switched on in Settings.",
     holidayBadge: "Holiday",
     holidayBtn: "Set holidays",
     holidayTitle: "Holidays",
@@ -1591,7 +1631,8 @@ const MODAL_CSS = `
   .form-row input[type="text"],
   .form-row input[type="time"],
   .form-row input[type="date"],
-  .form-row input[type="number"] {
+  .form-row input[type="number"],
+  .form-row textarea {
     padding: 10px 12px;
     border-radius: 8px;
     border: 1px solid var(--divider-color, rgba(255,255,255,0.15));
@@ -1600,7 +1641,24 @@ const MODAL_CSS = `
     font-size: 15px;
     font-family: inherit;
   }
-  .form-row input:focus {
+  .form-row textarea { resize: vertical; min-height: 64px; line-height: 1.4; }
+  .tts-section {
+    border: 1px solid var(--divider-color, rgba(255,255,255,0.15));
+    border-radius: 8px;
+    padding: 0 12px;
+  }
+  .tts-section > summary {
+    cursor: pointer;
+    padding: 12px 0;
+    font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    opacity: 0.7;
+  }
+  .tts-section[open] > summary { opacity: 1; }
+  .tts-section .tts-body { display: flex; flex-direction: column; gap: 12px; padding-bottom: 12px; }
+  .form-hint { font-size: 12px; opacity: 0.65; line-height: 1.4; }
+  .form-row input:focus,
+  .form-row textarea:focus {
     outline: none;
     border-color: var(--primary-color, #03a9f4);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color, #03a9f4) 30%, transparent);
@@ -1773,6 +1831,24 @@ const MODAL_HTML = `
         <label id="lbl-holiday">During holidays</label>
         <div id="f-holiday" class="mode-chips"></div>
       </div>
+      <details id="tts-section" class="tts-section">
+        <summary id="lbl-tts">Voice</summary>
+        <div class="tts-body">
+          <div class="form-row">
+            <label for="f-tts-text">Spoken at start</label>
+            <textarea id="f-tts-text" rows="2"></textarea>
+          </div>
+          <div class="form-row">
+            <label for="f-tts-prewarn-text">Spoken before</label>
+            <textarea id="f-tts-prewarn-text" rows="2"></textarea>
+          </div>
+          <div class="form-row">
+            <label for="f-tts-prewarn-seconds">How long before (s)</label>
+            <input type="number" id="f-tts-prewarn-seconds" min="0" max="3600" step="1" />
+          </div>
+          <div id="tts-hint" class="form-hint"></div>
+        </div>
+      </details>
     </div>
     <div class="mr-dialog-footer">
       <button class="btn btn-danger" id="delete-btn">🗑️ Delete</button>

@@ -33,19 +33,69 @@ from .const import (
     CONF_PREWARN_SECONDS,
     CONF_START,
     CONF_STEPS,
+    CONF_TTS_DEFAULT_PREWARN_TEXT,
+    CONF_TTS_DEFAULT_TEXT,
     CONF_TTS_ENABLED,
+    CONF_TTS_ENGINE,
+    CONF_TTS_PREWARN_SECONDS,
+    CONF_TTS_PREWARN_TEXT,
+    CONF_TTS_SERVICE,
     CONF_TTS_TARGET,
+    CONF_TTS_TEXT,
+    CONF_TTS_VOICE,
     DAYS_ALL,
     DEFAULT_DURATION_MIN,
     DEFAULT_HOLIDAY_MODE,
     DEFAULT_LANGUAGE,
     DEFAULT_PREWARN_SECONDS,
+    DEFAULT_TTS_SERVICE,
     DOMAIN,
     HOLIDAY_MODE_SKIP,
     HOLIDAY_MODES,
 )
 
 BUNDLED = "/morning_routine_frontend/images"
+
+# Optional per-step speech fields. A form only sends them when filled in, so a
+# missing key means "cleared".
+STEP_TTS_KEYS = (CONF_TTS_TEXT, CONF_TTS_PREWARN_TEXT, CONF_TTS_PREWARN_SECONDS)
+# Same for the optional fields in Settings.
+SETTINGS_OPTIONAL_KEYS = (
+    CONF_TTS_TARGET,
+    "chime_entity",
+    CONF_TTS_ENGINE,
+    CONF_TTS_VOICE,
+    CONF_TTS_DEFAULT_TEXT,
+    CONF_TTS_DEFAULT_PREWARN_TEXT,
+)
+
+
+def _apply_step_tts(step: dict, user_input: dict) -> dict:
+    """Copy the speech fields from a form into a step, dropping cleared ones."""
+    for key in STEP_TTS_KEYS:
+        value = user_input.get(key)
+        if isinstance(value, str):
+            value = value.strip()
+        if value in (None, ""):
+            step.pop(key, None)
+        elif key == CONF_TTS_PREWARN_SECONDS:
+            step[key] = int(value)
+        else:
+            step[key] = value
+    return step
+
+
+def _suggest(value: Any) -> dict[str, Any]:
+    """Pre-fill a field without making the value its default.
+
+    A default comes back when the user empties the field, so a text could
+    never be cleared again; a suggestion does not.
+    """
+    return {"suggested_value": None if value in (None, "", []) else value}
+
+
+def _multiline() -> selector.TextSelector:
+    return selector.TextSelector(selector.TextSelectorConfig(multiline=True))
 BUNDLED_FS = os.path.join(os.path.dirname(__file__), "frontend", "images")
 LOCAL_MORNING_DIR = "www/morning"
 
@@ -237,8 +287,9 @@ class MorningRoutineOptionsFlow(OptionsFlow):
     # ── add ──────────────────────────────────────────────────────────────────
     async def async_step_add_step(self, user_input: dict | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            user_input["id"] = uuid.uuid4().hex
-            self._steps.append(user_input)
+            step = {k: v for k, v in user_input.items() if k not in STEP_TTS_KEYS}
+            step["id"] = uuid.uuid4().hex
+            self._steps.append(_apply_step_tts(step, user_input))
             return await self._save_and_exit()
         return self.async_show_form(
             step_id="add_step", data_schema=await self._step_schema()
@@ -273,7 +324,10 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         if current is None:
             return self.async_abort(reason="not_found")
         if user_input is not None:
-            current.update(user_input)
+            current.update(
+                {k: v for k, v in user_input.items() if k not in STEP_TTS_KEYS}
+            )
+            _apply_step_tts(current, user_input)
             return await self._save_and_exit()
         return self.async_show_form(
             step_id="edit_form",
@@ -309,12 +363,21 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         opts = self.entry.options
         if user_input is not None:
             new_opts = {**opts, **user_input, CONF_STEPS: self._steps}
-            # The entity pickers only send a key when something is picked, so a
-            # missing key means the user cleared it.
-            for key in (CONF_TTS_TARGET, "chime_entity"):
-                if not user_input.get(key):
+            # Optional fields only send a key when something is filled in, so
+            # a missing key means the user cleared it.
+            for key in SETTINGS_OPTIONAL_KEYS:
+                value = user_input.get(key)
+                if isinstance(value, str):
+                    value = value.strip()
+                if value in (None, "", []):
                     new_opts.pop(key, None)
+                else:
+                    new_opts[key] = value
             return self.async_create_entry(title="", data=new_opts)
+        # Older versions stored a single media player as a string.
+        tts_targets = opts.get(CONF_TTS_TARGET)
+        if isinstance(tts_targets, str):
+            tts_targets = [tts_targets]
         schema = vol.Schema(
             {
                 vol.Optional(
@@ -337,13 +400,29 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                 # default is not a valid entity ID and fails validation, so the
                 # form could not be saved without picking a media player.
                 vol.Optional(
-                    CONF_TTS_TARGET,
-                    description={"suggested_value": opts.get(CONF_TTS_TARGET) or None},
+                    CONF_TTS_TARGET, description=_suggest(tts_targets)
                 ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="media_player")
+                    selector.EntitySelectorConfig(domain="media_player", multiple=True)
                 ),
+                # A TTS entity speaks through tts.speak and can take a voice.
+                # Without one, the old "<domain>.<service>" below is used.
                 vol.Optional(
-                    "tts_service", default=opts.get("tts_service", "tts.cloud_say")
+                    CONF_TTS_ENGINE, description=_suggest(opts.get(CONF_TTS_ENGINE))
+                ): selector.EntitySelector(selector.EntitySelectorConfig(domain="tts")),
+                vol.Optional(
+                    CONF_TTS_VOICE, description=_suggest(opts.get(CONF_TTS_VOICE))
+                ): str,
+                vol.Optional(
+                    CONF_TTS_DEFAULT_TEXT,
+                    description=_suggest(opts.get(CONF_TTS_DEFAULT_TEXT)),
+                ): _multiline(),
+                vol.Optional(
+                    CONF_TTS_DEFAULT_PREWARN_TEXT,
+                    description=_suggest(opts.get(CONF_TTS_DEFAULT_PREWARN_TEXT)),
+                ): _multiline(),
+                vol.Optional(
+                    CONF_TTS_SERVICE,
+                    default=opts.get(CONF_TTS_SERVICE, DEFAULT_TTS_SERVICE),
                 ): str,
                 vol.Optional(
                     CONF_CHIME_ENABLED, default=opts.get(CONF_CHIME_ENABLED, True)
@@ -529,6 +608,23 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                         options=list(HOLIDAY_MODES),
                         translation_key=CONF_HOLIDAY_MODE,
                         mode=selector.SelectSelectorMode.LIST,
+                    )
+                ),
+                vol.Optional(
+                    CONF_TTS_TEXT, description=_suggest(d.get(CONF_TTS_TEXT))
+                ): _multiline(),
+                vol.Optional(
+                    CONF_TTS_PREWARN_TEXT,
+                    description=_suggest(d.get(CONF_TTS_PREWARN_TEXT)),
+                ): _multiline(),
+                vol.Optional(
+                    CONF_TTS_PREWARN_SECONDS,
+                    description=_suggest(d.get(CONF_TTS_PREWARN_SECONDS)),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0, max=3600, step=1,
+                        unit_of_measurement="s",
+                        mode=selector.NumberSelectorMode.BOX,
                     )
                 ),
             }

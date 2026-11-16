@@ -6,13 +6,16 @@ Falls back to a slower polling interval when idle.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.template import Template
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -29,12 +32,21 @@ from .const import (
     CONF_PREWARN_SECONDS,
     CONF_START,
     CONF_STEPS,
+    CONF_TTS_DEFAULT_PREWARN_TEXT,
+    CONF_TTS_DEFAULT_TEXT,
     CONF_TTS_ENABLED,
+    CONF_TTS_ENGINE,
+    CONF_TTS_PREWARN_SECONDS,
+    CONF_TTS_PREWARN_TEXT,
+    CONF_TTS_SERVICE,
     CONF_TTS_TARGET,
+    CONF_TTS_TEXT,
+    CONF_TTS_VOICE,
     DAYS_ALL,
     DEFAULT_DURATION_MIN,
     DEFAULT_HOLIDAY_MODE,
     DEFAULT_PREWARN_SECONDS,
+    DEFAULT_TTS_SERVICE,
     DOMAIN,
     EVENT_ROUTINE_FINISHED,
     EVENT_STEP_FINISHED,
@@ -50,6 +62,23 @@ _LOGGER = logging.getLogger(__name__)
 TICK_ACTIVE = timedelta(seconds=1)
 TICK_IDLE = timedelta(seconds=30)
 
+# What was always said when a step has no text of its own and no default is
+# set. Kept word for word so installs that only switched speech on hear no
+# change.
+LEGACY_START_TEXT = "Elo: {name}"
+LEGACY_PREWARN_TEXT = {"de": "Gleich: {name}", "lb": "Geschwënn: {name}", "en": "Soon: {name}"}
+_PLACEHOLDER = re.compile(r"\{(\w+)\}")
+
+
+def parse_prewarn_seconds(value: Any) -> int | None:
+    """Per-step lead time: None (use the global one) or 0..3600 seconds."""
+    if value in (None, ""):
+        return None
+    try:
+        return max(0, min(3600, int(float(value))))
+    except (TypeError, ValueError):
+        return None
+
 
 @dataclass
 class Step:
@@ -60,6 +89,9 @@ class Step:
     image: str
     days: list[str]
     holiday_mode: str = DEFAULT_HOLIDAY_MODE
+    tts_text: str = ""
+    tts_prewarn_text: str = ""
+    tts_prewarn_seconds: int | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Step":
@@ -81,6 +113,11 @@ class Step:
                 data.get(CONF_HOLIDAY_MODE, DEFAULT_HOLIDAY_MODE)
                 if data.get(CONF_HOLIDAY_MODE) in HOLIDAY_MODES
                 else DEFAULT_HOLIDAY_MODE
+            ),
+            tts_text=str(data.get(CONF_TTS_TEXT) or "").strip(),
+            tts_prewarn_text=str(data.get(CONF_TTS_PREWARN_TEXT) or "").strip(),
+            tts_prewarn_seconds=parse_prewarn_seconds(
+                data.get(CONF_TTS_PREWARN_SECONDS)
             ),
         )
 
@@ -124,6 +161,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         self._active_idx: int | None = None
         self._snooze_offset = timedelta(0)
         self._prewarned: set[tuple[date, int]] = set()
+        self._tts_prewarned: set[tuple[date, int]] = set()
         self._reload_steps()
 
     # ── lifecycle ────────────────────────────────────────────────────────────
@@ -256,6 +294,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
             new_idx = self._compute_active(now, is_holiday)
 
         await self._maybe_prewarn(now, is_holiday)
+        await self._maybe_tts_prewarn(now, is_holiday)
 
         if new_idx != prev_idx:
             await self._fire_transitions(prev_idx, new_idx, now, is_holiday)
@@ -399,7 +438,7 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                     "duration": int(step.duration.total_seconds()),
                 },
             )
-            await self._maybe_announce(step)
+            await self._maybe_announce(step, new_idx, now, is_holiday)
         elif prev_step is not None:
             # Only a step that actually ran to its end finishes the routine.
             # Without the end check, muting the last step mid-run (parent
@@ -447,7 +486,6 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
                         "in_seconds": int(delta),
                     },
                 )
-                await self._announce_prewarn(step)
                 return
         # Drop yesterday's markers so the set cannot grow without bound.
         # A single marker used to be reused for every step, which made two
@@ -456,53 +494,184 @@ class MorningRoutineCoordinator(DataUpdateCoordinator):
         if any(day != today for day, _ in self._prewarned):
             self._prewarned = {k for k in self._prewarned if k[0] == today}
 
-    async def _announce_prewarn(self, step: Step) -> None:
+    # ── speech ───────────────────────────────────────────────────────────────
+    async def _maybe_tts_prewarn(self, now: datetime, is_holiday: bool = False) -> None:
+        """Speak each step's pre-announcement once, at that step's own lead time.
+
+        Separate from the prewarn event above: the event keeps the global
+        lead time automations rely on, while speech can differ per step.
+        """
         opts = self.entry.options
         if not opts.get(CONF_TTS_ENABLED, False):
             return
-        target = opts.get(CONF_TTS_TARGET)
-        if not target:
-            return
-        tts_service = opts.get("tts_service", "tts.cloud_say")
-        language = opts.get("language", "de")
-        word = step.name_lb if language == "lb" else step.name
-        prefix = {"de": "Gleich", "lb": "Geschwënn", "en": "Soon"}.get(language, "Soon")
-        try:
-            domain, service = tts_service.split(".", 1)
-        except ValueError:
-            return
-        await self.hass.services.async_call(
-            domain, service,
-            {"entity_id": target, "message": f"{prefix}: {word}"},
-            blocking=False,
-        )
+        today = now.date()
+        if any(day != today for day, _ in self._tts_prewarned):
+            self._tts_prewarned = {k for k in self._tts_prewarned if k[0] == today}
+        global_lead = int(opts.get(CONF_PREWARN_SECONDS, DEFAULT_PREWARN_SECONDS))
+        for idx, step in enumerate(self._steps):
+            if not step.runs_today(now, is_holiday):
+                continue
+            lead = (
+                step.tts_prewarn_seconds
+                if step.tts_prewarn_seconds is not None
+                else global_lead
+            )
+            if lead <= 0:
+                continue
+            delta = (step.start_dt(now) - now).total_seconds()
+            key = (today, idx)
+            if 0 < delta <= lead and key not in self._tts_prewarned:
+                self._tts_prewarned.add(key)
+                text = (
+                    step.tts_prewarn_text
+                    or str(opts.get(CONF_TTS_DEFAULT_PREWARN_TEXT) or "").strip()
+                    or LEGACY_PREWARN_TEXT.get(self._language(), LEGACY_PREWARN_TEXT["en"])
+                )
+                await self._say(text, step, idx, now, is_holiday, in_seconds=int(delta))
 
-    async def _maybe_announce(self, step: Step) -> None:
+    async def _maybe_announce(
+        self, step: Step, idx: int, now: datetime, is_holiday: bool = False
+    ) -> None:
         opts = self.entry.options
         if opts.get(CONF_CHIME_ENABLED, True):
             chime = opts.get("chime_entity")
             if chime:
-                await self.hass.services.async_call(
-                    "media_player", "play_media",
-                    {
-                        "entity_id": chime,
-                        "media_content_id": opts.get("chime_url", ""),
-                        "media_content_type": "music",
-                    },
-                    blocking=False,
-                )
+                try:
+                    await self.hass.services.async_call(
+                        "media_player", "play_media",
+                        {
+                            "entity_id": chime,
+                            "media_content_id": opts.get("chime_url", ""),
+                            "media_content_type": "music",
+                        },
+                        blocking=False,
+                    )
+                except Exception as err:  # noqa: BLE001 - never stall the tick
+                    _LOGGER.warning("Chime failed: %s", err)
         if opts.get(CONF_TTS_ENABLED, False):
-            target = opts.get(CONF_TTS_TARGET)
-            tts_service = opts.get("tts_service", "tts.cloud_say")
-            if target:
-                language = opts.get("language", "de")
-                msg = step.name_lb if language == "lb" else step.name
-                domain, service = tts_service.split(".", 1)
-                await self.hass.services.async_call(
-                    domain, service,
-                    {"entity_id": target, "message": f"Elo: {msg}"},
-                    blocking=False,
-                )
+            text = (
+                step.tts_text
+                or str(opts.get(CONF_TTS_DEFAULT_TEXT) or "").strip()
+                or LEGACY_START_TEXT
+            )
+            await self._say(text, step, idx, now, is_holiday)
+
+    def _language(self) -> str:
+        return self.entry.options.get("language", "de")
+
+    def _localized(self, item: Step | dict | None) -> str:
+        if item is None:
+            return ""
+        if isinstance(item, dict):
+            name, name_lb = item.get("name", ""), item.get("name_lb", "")
+        else:
+            name, name_lb = item.name, item.name_lb
+        return (name_lb or name) if self._language() == "lb" else name
+
+    def tts_variables(
+        self,
+        step: Step,
+        idx: int,
+        now: datetime,
+        is_holiday: bool = False,
+        in_seconds: int | None = None,
+    ) -> dict[str, Any]:
+        """Values a spoken text can use, as {name} or as {{ name }}."""
+        seconds = int(step.duration.total_seconds())
+        nxt = self._next_step_today(now, is_holiday, after_idx=idx)
+        variables: dict[str, Any] = {
+            "name": self._localized(step),
+            "name_de": step.name,
+            "name_lb": step.name_lb or step.name,
+            "minutes": round(seconds / 60),
+            "duration": seconds,
+            "start": step.start.strftime("%H:%M"),
+            "end": step.end(now).strftime("%H:%M"),
+            "next": self._localized(nxt),
+            "next_start": nxt["start"] if nxt else "",
+        }
+        if in_seconds is not None:
+            variables["in_seconds"] = in_seconds
+            variables["in_minutes"] = max(1, round(in_seconds / 60))
+        return variables
+
+    def render_tts_text(self, text: str, variables: dict[str, Any]) -> str:
+        """Fill a spoken text.
+
+        Text with {{ or {% is a Home Assistant template and gets the
+        variables as template variables. Anything else only swaps the
+        known {placeholders} and leaves every other brace alone.
+        """
+        if "{{" in text or "{%" in text:
+            return str(
+                Template(text, self.hass).async_render(variables, parse_result=False)
+            ).strip()
+        return _PLACEHOLDER.sub(
+            lambda m: str(variables[m.group(1)])
+            if m.group(1) in variables
+            else m.group(0),
+            text,
+        ).strip()
+
+    async def _say(
+        self,
+        text: str,
+        step: Step,
+        idx: int,
+        now: datetime,
+        is_holiday: bool = False,
+        in_seconds: int | None = None,
+    ) -> None:
+        """Render a text and send it to the configured speakers.
+
+        Never raises: this runs inside the tick, and an exception there
+        stops the active step from being recorded, so the same
+        announcement would repeat every second.
+        """
+        try:
+            message = self.render_tts_text(
+                text, self.tts_variables(step, idx, now, is_holiday, in_seconds)
+            )
+        except TemplateError as err:
+            _LOGGER.warning("Spoken text for %s is not a valid template: %s", step.name, err)
+            return
+        if not message:
+            return
+        await self.async_speak(message)
+
+    async def async_speak(self, message: str) -> None:
+        opts = self.entry.options
+        targets = opts.get(CONF_TTS_TARGET)
+        if isinstance(targets, str):
+            targets = [targets]
+        targets = [t for t in (targets or []) if t]
+        if not targets:
+            return
+        try:
+            engine = opts.get(CONF_TTS_ENGINE)
+            if engine:
+                data: dict[str, Any] = {
+                    "entity_id": engine,
+                    "media_player_entity_id": targets,
+                    "message": message,
+                }
+                voice = str(opts.get(CONF_TTS_VOICE) or "").strip()
+                if voice:
+                    data["options"] = {"voice": voice}
+                await self.hass.services.async_call("tts", "speak", data, blocking=False)
+                return
+            tts_service = opts.get(CONF_TTS_SERVICE) or DEFAULT_TTS_SERVICE
+            domain, _, service = str(tts_service).partition(".")
+            if not domain or not service:
+                _LOGGER.warning("TTS service %r is not of the form domain.service", tts_service)
+                return
+            await self.hass.services.async_call(
+                domain, service,
+                {"entity_id": targets, "message": message},
+                blocking=False,
+            )
+        except Exception as err:  # noqa: BLE001 - never stall the tick
+            _LOGGER.warning("Speaking %r failed: %s", message, err)
 
     # ── services ─────────────────────────────────────────────────────────────
     # The snooze_offset is subtracted from real time to get simulated time:

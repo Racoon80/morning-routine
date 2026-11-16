@@ -37,7 +37,15 @@
           "duration": "Duration",
           "image": "Picture (pick bundled / from /config/www/morning/, or paste any URL)",
           "days": "Active days",
-          "holiday_mode": "During holidays"
+          "holiday_mode": "During holidays",
+          "tts_text": "Spoken when the step starts",
+          "tts_prewarn_text": "Spoken before the step starts",
+          "tts_prewarn_seconds": "How long before (seconds)"
+        },
+        "data_description": {
+          "tts_text": "Empty = the default text from Settings. Placeholders: {name}, {minutes}, {start}, {end}, {next}. Text with {{ … }} or {% … %} is a Home Assistant template.",
+          "tts_prewarn_text": "Empty = the default pre-warn text from Settings. Also {in_minutes} and {in_seconds}.",
+          "tts_prewarn_seconds": "Empty = the time from Settings, 0 = nothing before this step."
         }
       },
       "edit_step": {
@@ -55,7 +63,15 @@
           "duration": "Duration",
           "image": "Picture (pick bundled / from /config/www/morning/, or paste any URL)",
           "days": "Active days",
-          "holiday_mode": "During holidays"
+          "holiday_mode": "During holidays",
+          "tts_text": "Spoken when the step starts",
+          "tts_prewarn_text": "Spoken before the step starts",
+          "tts_prewarn_seconds": "How long before (seconds)"
+        },
+        "data_description": {
+          "tts_text": "Empty = the default text from Settings. Placeholders: {name}, {minutes}, {start}, {end}, {next}. Text with {{ … }} or {% … %} is a Home Assistant template.",
+          "tts_prewarn_text": "Empty = the default pre-warn text from Settings. Also {in_minutes} and {in_seconds}.",
+          "tts_prewarn_seconds": "Empty = the time from Settings, 0 = nothing before this step."
         }
       },
       "remove_step": {
@@ -82,13 +98,23 @@
         "title": "Sound, voice & language",
         "data": {
           "language": "Language",
-          "tts_enabled": "Speak step name",
-          "tts_target": "TTS target",
-          "tts_service": "TTS service",
+          "tts_enabled": "Speak",
+          "tts_target": "Speakers (media players)",
+          "tts_engine": "TTS engine",
+          "tts_voice": "Voice",
+          "tts_default_text": "Default text at step start",
+          "tts_default_prewarn_text": "Default text before a step",
+          "tts_service": "TTS service (only without a TTS engine)",
           "chime_enabled": "Play chime on step start",
           "chime_entity": "Chime media player",
           "chime_url": "Chime audio URL",
-          "prewarn_seconds": "Pre-warn announcement (seconds before step, 0 = off)"
+          "prewarn_seconds": "Pre-warning (seconds before a step, 0 = off)"
+        },
+        "data_description": {
+          "tts_engine": "Speaks through tts.speak, e.g. tts.piper. Empty = the TTS service below.",
+          "tts_voice": "Optional, depends on the engine (e.g. marylux).",
+          "tts_default_text": "For steps without their own text. Empty = \"Elo: {name}\". Placeholders: {name}, {minutes}, {start}, {end}, {next}. Text with {{ … }} or {% … %} is a Home Assistant template.",
+          "tts_default_prewarn_text": "Empty = \"Soon: {name}\". Also {in_minutes} and {in_seconds}."
         }
       },
       "display": {

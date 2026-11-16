@@ -37,7 +37,15 @@
           "duration": "Dauer",
           "image": "Bild (auswählen aus mitgelieferten / /config/www/morning/, oder URL einfügen)",
           "days": "Aktive Tage",
-          "holiday_mode": "In den Ferien"
+          "holiday_mode": "In den Ferien",
+          "tts_text": "Ansage beim Start des Schritts",
+          "tts_prewarn_text": "Ansage vor dem Schritt",
+          "tts_prewarn_seconds": "Wie lange vorher (Sekunden)"
+        },
+        "data_description": {
+          "tts_text": "Leer = Standardtext aus den Einstellungen. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mit {{ … }} oder {% … %} ist ein Home-Assistant-Template.",
+          "tts_prewarn_text": "Leer = Standard-Vorwarnung aus den Einstellungen. Zusätzlich {in_minutes} und {in_seconds}.",
+          "tts_prewarn_seconds": "Leer = Zeit aus den Einstellungen, 0 = keine Ansage vor diesem Schritt."
         }
       },
       "edit_step": {
@@ -55,7 +63,15 @@
           "duration": "Dauer",
           "image": "Bild (auswählen aus mitgelieferten / /config/www/morning/, oder URL einfügen)",
           "days": "Aktive Tage",
-          "holiday_mode": "In den Ferien"
+          "holiday_mode": "In den Ferien",
+          "tts_text": "Ansage beim Start des Schritts",
+          "tts_prewarn_text": "Ansage vor dem Schritt",
+          "tts_prewarn_seconds": "Wie lange vorher (Sekunden)"
+        },
+        "data_description": {
+          "tts_text": "Leer = Standardtext aus den Einstellungen. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mit {{ … }} oder {% … %} ist ein Home-Assistant-Template.",
+          "tts_prewarn_text": "Leer = Standard-Vorwarnung aus den Einstellungen. Zusätzlich {in_minutes} und {in_seconds}.",
+          "tts_prewarn_seconds": "Leer = Zeit aus den Einstellungen, 0 = keine Ansage vor diesem Schritt."
         }
       },
       "remove_step": {
@@ -82,13 +98,23 @@
         "title": "Ton, Stimme & Sprache",
         "data": {
           "language": "Sprache",
-          "tts_enabled": "Schrittnamen vorlesen",
-          "tts_target": "TTS-Ziel (Media Player)",
-          "tts_service": "TTS-Dienst (z.B. tts.cloud_say, tts.luxembourgish)",
+          "tts_enabled": "Sprachausgabe",
+          "tts_target": "Lautsprecher (Media Player)",
+          "tts_engine": "TTS-Engine",
+          "tts_voice": "Stimme",
+          "tts_default_text": "Standardtext beim Schrittstart",
+          "tts_default_prewarn_text": "Standardtext vor einem Schritt",
+          "tts_service": "TTS-Service (nur ohne TTS-Engine)",
           "chime_enabled": "Klingel beim Schritt-Start",
           "chime_entity": "Klingel-Media-Player",
           "chime_url": "Klingel-Audio-URL",
-          "prewarn_seconds": "Voransage (Sekunden vorher, 0 = aus)"
+          "prewarn_seconds": "Vorwarnung (Sekunden vor dem Schritt, 0 = aus)"
+        },
+        "data_description": {
+          "tts_engine": "Spricht über tts.speak, z. B. tts.piper. Leer = TTS-Service unten.",
+          "tts_voice": "Optional, hängt von der Engine ab (z. B. marylux).",
+          "tts_default_text": "Für Schritte ohne eigenen Text. Leer = „Elo: {name}“. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mit {{ … }} oder {% … %} ist ein Home-Assistant-Template.",
+          "tts_default_prewarn_text": "Leer = „Gleich: {name}“. Zusätzlich {in_minutes} und {in_seconds}."
         }
       },
       "display": {

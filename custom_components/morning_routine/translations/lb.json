@@ -37,7 +37,15 @@
           "duration": "Dauer",
           "image": "Bild (auswielen aus matgeliwwerten / /config/www/morning/, oder URL erafügen)",
           "days": "Aktiv Deeg",
-          "holiday_mode": "An der Vakanz"
+          "holiday_mode": "An der Vakanz",
+          "tts_text": "Ukënnegung beim Start vum Schrëtt",
+          "tts_prewarn_text": "Ukënnegung virum Schrëtt",
+          "tts_prewarn_seconds": "Wéi laang virdrun (Sekonnen)"
+        },
+        "data_description": {
+          "tts_text": "Eidel = Standardtext aus den Astellungen. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mat {{ … }} oder {% … %} ass en Home-Assistant-Template.",
+          "tts_prewarn_text": "Eidel = Standard-Viraussoen aus den Astellungen. Zousätzlech {in_minutes} an {in_seconds}.",
+          "tts_prewarn_seconds": "Eidel = Zäit aus den Astellungen, 0 = näischt virun dësem Schrëtt."
         }
       },
       "edit_step": {
@@ -55,7 +63,15 @@
           "duration": "Dauer",
           "image": "Bild (auswielen aus matgeliwwerten / /config/www/morning/, oder URL erafügen)",
           "days": "Aktiv Deeg",
-          "holiday_mode": "An der Vakanz"
+          "holiday_mode": "An der Vakanz",
+          "tts_text": "Ukënnegung beim Start vum Schrëtt",
+          "tts_prewarn_text": "Ukënnegung virum Schrëtt",
+          "tts_prewarn_seconds": "Wéi laang virdrun (Sekonnen)"
+        },
+        "data_description": {
+          "tts_text": "Eidel = Standardtext aus den Astellungen. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mat {{ … }} oder {% … %} ass en Home-Assistant-Template.",
+          "tts_prewarn_text": "Eidel = Standard-Viraussoen aus den Astellungen. Zousätzlech {in_minutes} an {in_seconds}.",
+          "tts_prewarn_seconds": "Eidel = Zäit aus den Astellungen, 0 = näischt virun dësem Schrëtt."
         }
       },
       "remove_step": {
@@ -82,13 +98,23 @@
         "title": "Toun, Stëmm & Sprooch",
         "data": {
           "language": "Sprooch",
-          "tts_enabled": "Schrëttnumm virliesen",
-          "tts_target": "TTS-Zil (Media Player)",
-          "tts_service": "TTS-Service",
+          "tts_enabled": "Sproochausgab",
+          "tts_target": "Lautsprecher (Media Player)",
+          "tts_engine": "TTS-Engine",
+          "tts_voice": "Stëmm",
+          "tts_default_text": "Standardtext beim Start vun engem Schrëtt",
+          "tts_default_prewarn_text": "Standardtext virun engem Schrëtt",
+          "tts_service": "TTS-Service (just ouni TTS-Engine)",
           "chime_enabled": "Klangel beim Schrëtt-Ufank",
           "chime_entity": "Klangel-Media-Player",
           "chime_url": "Klangel-Audio-URL",
-          "prewarn_seconds": "Viraussoen (Sekonnen virdrun, 0 = aus)"
+          "prewarn_seconds": "Viraussoen (Sekonnen virum Schrëtt, 0 = aus)"
+        },
+        "data_description": {
+          "tts_engine": "Schwätzt iwwer tts.speak, z. B. tts.piper. Eidel = TTS-Service hei drënner.",
+          "tts_voice": "Optional, hänkt vun der Engine of (z. B. marylux).",
+          "tts_default_text": "Fir Schrëtt ouni eegenen Text. Eidel = „Elo: {name}“. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mat {{ … }} oder {% … %} ass en Home-Assistant-Template.",
+          "tts_default_prewarn_text": "Eidel = „Geschwënn: {name}“. Zousätzlech {in_minutes} an {in_seconds}."
         }
       },
       "display": {
