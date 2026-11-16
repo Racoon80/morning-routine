@@ -43,8 +43,8 @@
           "tts_prewarn_seconds": "Wéi laang virdrun (Sekonnen)"
         },
         "data_description": {
-          "tts_text": "Eidel = Standardtext aus den Astellungen. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mat {{ … }} oder {% … %} ass en Home-Assistant-Template.",
-          "tts_prewarn_text": "Eidel = Standard-Viraussoen aus den Astellungen. Zousätzlech {in_minutes} an {in_seconds}.",
+          "tts_text": "Eidel = Standardtext aus den Astellungen. Platzhalter: {placeholders}. Text mat {template} ass en Home-Assistant-Template.",
+          "tts_prewarn_text": "Eidel = Standard-Viraussoen aus den Astellungen. Zousätzlech {prewarn_placeholders}.",
           "tts_prewarn_seconds": "Eidel = Zäit aus den Astellungen, 0 = näischt virun dësem Schrëtt."
         }
       },
@@ -69,8 +69,8 @@
           "tts_prewarn_seconds": "Wéi laang virdrun (Sekonnen)"
         },
         "data_description": {
-          "tts_text": "Eidel = Standardtext aus den Astellungen. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mat {{ … }} oder {% … %} ass en Home-Assistant-Template.",
-          "tts_prewarn_text": "Eidel = Standard-Viraussoen aus den Astellungen. Zousätzlech {in_minutes} an {in_seconds}.",
+          "tts_text": "Eidel = Standardtext aus den Astellungen. Platzhalter: {placeholders}. Text mat {template} ass en Home-Assistant-Template.",
+          "tts_prewarn_text": "Eidel = Standard-Viraussoen aus den Astellungen. Zousätzlech {prewarn_placeholders}.",
           "tts_prewarn_seconds": "Eidel = Zäit aus den Astellungen, 0 = näischt virun dësem Schrëtt."
         }
       },
@@ -113,8 +113,8 @@
         "data_description": {
           "tts_engine": "Schwätzt iwwer tts.speak, z. B. tts.piper. Eidel = TTS-Service hei drënner.",
           "tts_voice": "Optional, hänkt vun der Engine of (z. B. marylux).",
-          "tts_default_text": "Fir Schrëtt ouni eegenen Text. Eidel = „Elo: {name}“. Platzhalter: {name}, {minutes}, {start}, {end}, {next}. Text mat {{ … }} oder {% … %} ass en Home-Assistant-Template.",
-          "tts_default_prewarn_text": "Eidel = „Geschwënn: {name}“. Zousätzlech {in_minutes} an {in_seconds}."
+          "tts_default_text": "Fir Schrëtt ouni eegenen Text. Eidel = „{legacy_start}“. Platzhalter: {placeholders}. Text mat {template} ass en Home-Assistant-Template.",
+          "tts_default_prewarn_text": "Eidel = „{legacy_prewarn}“. Zousätzlech {prewarn_placeholders}."
         }
       },
       "display": {

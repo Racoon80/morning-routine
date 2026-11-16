@@ -94,6 +94,17 @@ def _suggest(value: Any) -> dict[str, Any]:
     return {"suggested_value": None if value in (None, "", []) else value}
 
 
+# Shown in the field help. The help texts name them through placeholders,
+# because Home Assistant treats {...} in a translation as its own placeholder.
+TTS_HELP = {
+    "placeholders": "{name}, {minutes}, {start}, {end}, {next}",
+    "prewarn_placeholders": "{in_minutes}, {in_seconds}",
+    "template": "{{ … }} / {% … %}",
+    "legacy_start": "Elo: {name}",
+    "legacy_prewarn": "Geschwënn: {name}",
+}
+
+
 def _multiline() -> selector.TextSelector:
     return selector.TextSelector(selector.TextSelectorConfig(multiline=True))
 BUNDLED_FS = os.path.join(os.path.dirname(__file__), "frontend", "images")
@@ -292,7 +303,9 @@ class MorningRoutineOptionsFlow(OptionsFlow):
             self._steps.append(_apply_step_tts(step, user_input))
             return await self._save_and_exit()
         return self.async_show_form(
-            step_id="add_step", data_schema=await self._step_schema()
+            step_id="add_step",
+            data_schema=await self._step_schema(),
+            description_placeholders=TTS_HELP,
         )
 
     # ── edit ─────────────────────────────────────────────────────────────────
@@ -332,6 +345,7 @@ class MorningRoutineOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="edit_form",
             data_schema=await self._step_schema(defaults=current),
+            description_placeholders=TTS_HELP,
         )
 
     # ── remove ───────────────────────────────────────────────────────────────
@@ -448,7 +462,9 @@ class MorningRoutineOptionsFlow(OptionsFlow):
                 ),
             }
         )
-        return self.async_show_form(step_id="settings", data_schema=schema)
+        return self.async_show_form(
+            step_id="settings", data_schema=schema, description_placeholders=TTS_HELP
+        )
 
     # ── holidays ─────────────────────────────────────────────────────────────
     @staticmethod

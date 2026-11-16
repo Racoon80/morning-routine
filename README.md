@@ -299,7 +299,7 @@ The integration recognises its own entry afterwards and only keeps the version q
 
 **The card still looks like the old version after an update**
 
-Browsers cache the script. Restart HA (the URL gets a fresh `?v=` on every version), then hard-refresh — on a wall tablet, clear the browser cache or restart the kiosk app. The console prints the version it actually loaded: `MORNING-ROUTINE-CARD v0.12.0`.
+Browsers cache the script. Restart HA (the URL gets a fresh `?v=` on every version), then hard-refresh — on a wall tablet, clear the browser cache or restart the kiosk app. The console prints the version it actually loaded: `MORNING-ROUTINE-CARD v0.12.1`.
 
 **Configure has no “Holidays” entry, or a step form has no holiday field**
 
